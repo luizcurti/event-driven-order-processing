@@ -1,0 +1,68 @@
+name: ci
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  application:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Prettier
+        run: npm run format
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Tests
+        run: npm test
+
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform fmt
+        run: terraform fmt -check -recursive terraform
+
+      - name: Terraform init dev
+        working-directory: terraform/environments/dev
+        run: terraform init -backend=false
+
+      - name: Terraform validate dev
+        working-directory: terraform/environments/dev
+        run: terraform validate
+
+      - name: Terraform init prod
+        working-directory: terraform/environments/prod
+        run: terraform init -backend=false
+
+      - name: Terraform validate prod
+        working-directory: terraform/environments/prod
+        run: terraform validate
+
+      - name: Terraform plan dev
+        if: github.event_name == 'pull_request'
+        working-directory: terraform/environments/dev
+        run: terraform plan -input=false -lock=false

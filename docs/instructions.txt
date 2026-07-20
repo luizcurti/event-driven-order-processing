@@ -1,0 +1,756 @@
+# Project
+
+Project name
+
+event-driven-order-processing
+
+Objective
+
+Build a complete order processing system using an Event-Driven architecture on AWS.
+
+This project is intended to be used as a professional portfolio to demonstrate expertise in:
+
+- AWS Serverless
+- Event-Driven Architecture
+- Step Functions
+- EventBridge
+- API Gateway
+- Lambda
+- SQS
+- DynamoDB
+- CloudWatch
+- WAF
+- Terraform
+- CI/CD
+- Testing
+- Observability
+
+The system should represent an architecture similar to those used by companies such as Amazon, Mercado Livre, and iFood.
+
+The goal is not only to deliver features, but also to demonstrate architecture, best practices, and code organization.
+
+____________________________________________________
+
+Expected flow
+
+Internet
+
+↓
+
+AWS WAF
+
+↓
+
+API Gateway
+
+↓
+
+CreateOrder Lambda
+
+↓
+
+DynamoDB (Orders)
+
+↓
+
+EventBridge
+
+↓
+
+Step Functions
+
+↓
+
+Inventory Lambda
+
+↓
+
+Payment Lambda
+
+↓
+
+Fraud Lambda
+
+↓
+
+Result
+
+↓
+
+APPROVED
+
+or
+
+REJECTED
+
+or
+
+OUT_OF_STOCK
+
+↓
+
+SQS
+
+↓
+
+Shipping Lambda or Notification Lambda
+
+↓
+
+Order update
+
+↓
+
+CloudWatch
+
+____________________________________________________
+
+Language
+
+Node.js 22 LTS
+
+Framework
+
+AWS Lambda
+
+Infrastructure
+
+Terraform
+
+Database
+
+DynamoDB
+
+Messaging
+
+Amazon SQS
+
+Events
+
+Amazon EventBridge
+
+Orchestration
+
+AWS Step Functions
+
+API
+
+API Gateway
+
+Logs
+
+CloudWatch
+
+Security
+
+AWS WAF
+
+Version control
+
+Git
+
+CI/CD
+
+GitHub Actions
+
+____________________________________________________
+
+root
+
+terraform/
+
+src/
+
+    shared/
+
+    create-order/
+
+    inventory/
+
+    payment/
+
+    fraud/
+
+    shipping/
+
+    notification/
+
+    update-order/
+
+tests/
+
+docs/
+
+.github/
+
+README.md
+
+____________________________________________________
+
+terraform/
+
+modules/
+
+    apigateway
+
+    lambda
+
+    dynamodb
+
+    eventbridge
+
+    sqs
+
+    iam
+
+    waf
+
+    cloudwatch
+
+    stepfunctions
+
+    alarms
+
+environments/
+
+    dev
+
+    prod
+
+____________________________________________________
+
+APIs
+Create order
+POST /orders
+
+Body
+
+{
+    "customerId":"123",
+    "items":[
+        {
+            "productId":"ABC",
+            "quantity":2
+        }
+    ]
+}
+
+Response
+
+{
+    "orderId":"uuid",
+    "status":"RECEIVED"
+}
+Get order
+GET /orders/{id}
+
+Response
+
+{
+    "id":"uuid",
+    "status":"APPROVED",
+    "createdAt":"",
+    "updatedAt":"",
+    "customerId":"",
+    "items":[]
+}
+List orders
+GET /orders
+Cancel order
+DELETE /orders/{id}
+
+____________________________________________________
+
+DynamoDB
+
+Table
+
+Orders
+
+PK
+
+ORDER#<uuid>
+
+Attributes
+
+customerId
+
+status
+
+createdAt
+
+updatedAt
+
+items
+
+payment
+
+fraud
+
+inventory
+
+shipping
+
+Order statuses
+
+RECEIVED
+
+PROCESSING
+
+APPROVED
+
+REJECTED
+
+OUT_OF_STOCK
+
+PAYMENT_FAILED
+
+FRAUD_DETECTED
+
+SHIPPING
+
+DELIVERED
+
+CANCELLED
+
+Step Functions
+
+Flow
+
+Create Order
+
+↓
+
+Inventory Validation
+
+↓
+
+Payment
+
+↓
+
+Fraud Analysis
+
+↓
+
+Choice
+
+↓
+
+Approved?
+
+↓
+
+Shipping
+
+↓
+
+Finish
+
+Out-of-stock scenario
+
+Inventory
+
+↓
+
+OutOfStock
+
+↓
+
+Notification
+
+↓
+
+Finish
+
+Fraud scenario
+
+Fraud
+
+↓
+
+Rejected
+
+↓
+
+Notification
+
+↓
+
+Finish
+
+Payment failure scenario
+
+Payment
+
+↓
+
+Rejected
+
+↓
+
+Notification
+
+↓
+
+Finish
+
+EventBridge
+
+Events
+
+OrderCreated
+
+InventoryValidated
+
+InventoryFailed
+
+PaymentApproved
+
+PaymentFailed
+
+FraudApproved
+
+FraudRejected
+
+OrderApproved
+
+OrderRejected
+
+ShippingStarted
+
+ShippingCompleted
+
+Each event must have its own payload and versioning (`detail-type`, `source`, `version`).
+
+Lambdas
+
+CreateOrder
+
+Responsibilities:
+
+validate input
+generate UUID
+persist order
+publish event
+
+Inventory
+
+Simulate stock lookup.
+
+Returns:
+
+AVAILABLE
+
+OUT_OF_STOCK
+
+Payment
+
+Simulate payment gateway.
+
+Returns:
+
+APPROVED
+
+FAILED
+
+Fraud
+
+Simulate fraud score.
+
+Returns:
+
+APPROVED
+
+REJECTED
+
+Shipping
+
+Update order to
+
+SHIPPING
+
+Then
+
+DELIVERED
+
+Notification
+
+Simulate sending via
+
+email
+
+sms
+
+push
+
+Only log the message in CloudWatch.
+
+SQS
+
+Create separate queues:
+
+shipping-queue
+
+notification-queue
+
+dead-letter-queue
+
+Configure DLQ for failure handling.
+
+CloudWatch
+
+All Lambdas must log:
+
+requestId
+
+correlationId
+
+orderId
+
+executionTime
+
+status
+
+error
+
+Never use `console.log` directly; create a structured logger.
+
+Observability
+
+Implement:
+
+Structured Logging
+
+Correlation ID
+
+Tracing (AWS X-Ray optional)
+
+Custom metrics
+
+CloudWatch Alarms
+
+Security
+
+Implement:
+
+AWS WAF
+
+Least Privilege IAM
+
+Input validation
+
+Sanitization
+
+Rate Limit
+
+Request Validation
+
+API Gateway Request Models
+
+CORS
+
+Terraform
+
+Every resource must be created exclusively through Terraform.
+
+Create independent modules for:
+
+Lambda
+
+API Gateway
+
+IAM
+
+SQS
+
+EventBridge
+
+Step Functions
+
+CloudWatch
+
+DynamoDB
+
+WAF
+
+Use:
+
+variables.tf
+
+outputs.tf
+
+main.tf
+
+versions.tf
+
+providers.tf
+
+Separate environments:
+
+dev
+
+prod
+
+Use Remote State (S3 + DynamoDB Lock) as a future evolution.
+
+Clean Code
+
+Follow:
+
+SOLID
+
+KISS
+
+YAGNI
+
+DRY
+
+Clean Code
+
+Avoid:
+
+God Classes
+
+God Functions
+
+Duplication
+
+Dead code
+
+Excessive coupling
+
+Architecture
+
+Apply Clean Architecture only where it adds value.
+
+Suggested organization for each Lambda:
+
+handler/
+
+application/
+
+domain/
+
+infrastructure/
+
+tests/
+
+Separate responsibilities into:
+
+Handler (AWS entrypoint)
+Use Case (business rule)
+Repository (persistence)
+Services (integrations)
+Domain (entities and rules)
+
+Do not create unnecessary abstractions for a portfolio project.
+
+Error handling
+
+Create specific exceptions:
+
+ValidationError
+
+InventoryException
+
+PaymentException
+
+FraudException
+
+OrderNotFoundException
+
+Return standardized responses.
+
+Testing
+
+Goal:
+
+100% code coverage.
+
+Implement:
+
+Unit tests
+
+Integration tests
+
+Mocks
+
+Fixtures
+
+Cover:
+
+Success flows
+Error flows
+Validations
+Edge cases
+Events
+Repositories
+Handlers
+CI/CD
+
+Create a GitHub Actions pipeline running:
+
+npm ci
+ESLint
+Prettier
+Unit tests
+Integration tests
+Coverage
+Terraform fmt
+Terraform validate
+Terraform plan (on PRs)
+README
+
+Create complete documentation containing:
+
+Project overview
+Architecture (diagram)
+Event flow
+Step Functions flow
+Project structure
+Technologies
+How to run locally
+Shell entry points that should exist for the initial local workflow:
+
+- ./local.sh up
+- ./local.sh tf
+- ./scripts/local-up.sh
+- ./scripts/local-ready.sh
+- ./scripts/terraform-check.sh
+
+Expected responsibilities:
+
+- start Docker/LocalStack and bootstrap local AWS resources
+- launch the local HTTP API for manual or Postman validation
+- validate Terraform formatting, init and validate steps for dev and prod
+How to deploy
+Endpoints
+Request and response examples
+DynamoDB model
+EventBridge events
+SQS queue structure
+Error handling strategy
+Testing strategy
+AWS screenshots
+Next evolutions
+Quality requirements
+Code in English (variable names, functions, classes, files, and comments).
+TypeScript with strict mode enabled.
+ESLint and Prettier configured.
+Commits following Conventional Commits.
+Public function documentation with JSDoc when it adds value.
+Do not use `any` unless explicitly justified.
+All dependencies should be the latest stable or LTS versions.
+
+Portfolio differentiators
+
+Add some capabilities commonly seen in real systems:
+
+Idempotency in order creation (avoid duplicate orders).
+Correlation ID propagated across API Gateway, EventBridge, Step Functions, and Lambdas.
+Retry with exponential backoff for asynchronous calls.
+Dead Letter Queue for unprocessed messages.
+CloudWatch alarms for errors, SQS queue growth, and Step Functions failures.
+Custom metrics (approved orders, rejected orders, average processing time).
+Simple feature flags via environment variables to enable/disable fraud or inventory validation.

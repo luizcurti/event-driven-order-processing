@@ -1,0 +1,609 @@
+{
+  "info": {
+    "_postman_id": "f1f27386-3e32-4eb6-a935-1df7ad322f6d",
+    "name": "event-driven-order-processing (local)",
+    "description": "Collection for validating the local API and the main asynchronous system flows.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:3000"
+    },
+    {
+      "key": "maxPollAttempts",
+      "value": "40"
+    },
+    {
+      "key": "pollDelayMs",
+      "value": "250"
+    }
+  ],
+  "item": [
+    {
+      "name": "Create Approved Order",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "pm.collectionVariables.set('approvedCorrelationId', 'corr-approved-' + Date.now());",
+              "pm.collectionVariables.set('approvedIdempotencyKey', 'idem-approved-' + Date.now());"
+            ],
+            "type": "text/javascript"
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('status 202', function () {",
+              "  pm.response.to.have.status(202);",
+              "});",
+              "",
+              "var body = pm.response.json();",
+              "pm.test('returns orderId', function () {",
+              "  pm.expect(body.orderId).to.be.a('string').and.not.empty;",
+              "  pm.expect(body.status).to.eql('RECEIVED');",
+              "});",
+              "",
+              "pm.collectionVariables.set('approvedOrderId', body.orderId);",
+              "pm.collectionVariables.set('approvedAttempt', '0');"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "x-correlation-id",
+            "value": "{{approvedCorrelationId}}"
+          },
+          {
+            "key": "idempotency-key",
+            "value": "{{approvedIdempotencyKey}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"customerId\": \"customer-approved\",\n  \"items\": [\n    {\n      \"productId\": \"SKU-1\",\n      \"quantity\": 1\n    }\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/orders",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "orders"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Get Approved Order (Polling)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.response.to.have.status(200);",
+              "",
+              "var body = pm.response.json();",
+              "var maxAttempts = parseInt(pm.collectionVariables.get('maxPollAttempts'), 10);",
+              "var delayMs = parseInt(pm.collectionVariables.get('pollDelayMs'), 10);",
+              "var attempt = parseInt(pm.collectionVariables.get('approvedAttempt') || '0', 10) + 1;",
+              "pm.collectionVariables.set('approvedAttempt', String(attempt));",
+              "",
+              "if (body.status !== 'DELIVERED' && attempt < maxAttempts) {",
+              "  var start = Date.now();",
+              "  while (Date.now() - start < delayMs) {}",
+              "  postman.setNextRequest('Get Approved Order (Polling)');",
+              "} else {",
+              "  pm.test('status final DELIVERED', function () {",
+              "    pm.expect(body.status).to.eql('DELIVERED');",
+              "  });",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/orders/{{approvedOrderId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "orders",
+            "{{approvedOrderId}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Create Out Of Stock Order",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "pm.collectionVariables.set('stockCorrelationId', 'corr-stock-' + Date.now());",
+              "pm.collectionVariables.set('stockIdempotencyKey', 'idem-stock-' + Date.now());"
+            ],
+            "type": "text/javascript"
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.response.to.have.status(202);",
+              "var body = pm.response.json();",
+              "pm.collectionVariables.set('stockOrderId', body.orderId);",
+              "pm.collectionVariables.set('stockAttempt', '0');"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "x-correlation-id",
+            "value": "{{stockCorrelationId}}"
+          },
+          {
+            "key": "idempotency-key",
+            "value": "{{stockIdempotencyKey}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"customerId\": \"customer-stock\",\n  \"items\": [\n    {\n      \"productId\": \"SKU-2\",\n      \"quantity\": 8\n    }\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/orders",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "orders"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Get Out Of Stock Order (Polling)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.response.to.have.status(200);",
+              "var body = pm.response.json();",
+              "var maxAttempts = parseInt(pm.collectionVariables.get('maxPollAttempts'), 10);",
+              "var delayMs = parseInt(pm.collectionVariables.get('pollDelayMs'), 10);",
+              "var attempt = parseInt(pm.collectionVariables.get('stockAttempt') || '0', 10) + 1;",
+              "pm.collectionVariables.set('stockAttempt', String(attempt));",
+              "",
+              "if (body.status !== 'OUT_OF_STOCK' && attempt < maxAttempts) {",
+              "  var start = Date.now();",
+              "  while (Date.now() - start < delayMs) {}",
+              "  postman.setNextRequest('Get Out Of Stock Order (Polling)');",
+              "} else {",
+              "  pm.test('status final OUT_OF_STOCK', function () {",
+              "    pm.expect(body.status).to.eql('OUT_OF_STOCK');",
+              "  });",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/orders/{{stockOrderId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "orders",
+            "{{stockOrderId}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Create Payment Failed Order",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "pm.collectionVariables.set('paymentCorrelationId', 'corr-payment-' + Date.now());",
+              "pm.collectionVariables.set('paymentIdempotencyKey', 'idem-payment-' + Date.now());"
+            ],
+            "type": "text/javascript"
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.response.to.have.status(202);",
+              "var body = pm.response.json();",
+              "pm.collectionVariables.set('paymentOrderId', body.orderId);",
+              "pm.collectionVariables.set('paymentAttempt', '0');"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "x-correlation-id",
+            "value": "{{paymentCorrelationId}}"
+          },
+          {
+            "key": "idempotency-key",
+            "value": "{{paymentIdempotencyKey}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"customerId\": \"fail-payment-customer\",\n  \"items\": [\n    {\n      \"productId\": \"SKU-3\",\n      \"quantity\": 1\n    }\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/orders",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "orders"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Get Payment Failed Order (Polling)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.response.to.have.status(200);",
+              "var body = pm.response.json();",
+              "var maxAttempts = parseInt(pm.collectionVariables.get('maxPollAttempts'), 10);",
+              "var delayMs = parseInt(pm.collectionVariables.get('pollDelayMs'), 10);",
+              "var attempt = parseInt(pm.collectionVariables.get('paymentAttempt') || '0', 10) + 1;",
+              "pm.collectionVariables.set('paymentAttempt', String(attempt));",
+              "",
+              "if (body.status !== 'PAYMENT_FAILED' && attempt < maxAttempts) {",
+              "  var start = Date.now();",
+              "  while (Date.now() - start < delayMs) {}",
+              "  postman.setNextRequest('Get Payment Failed Order (Polling)');",
+              "} else {",
+              "  pm.test('status final PAYMENT_FAILED', function () {",
+              "    pm.expect(body.status).to.eql('PAYMENT_FAILED');",
+              "  });",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/orders/{{paymentOrderId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "orders",
+            "{{paymentOrderId}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Create Fraud Rejected Order",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "pm.collectionVariables.set('fraudCorrelationId', 'corr-fraud-' + Date.now());",
+              "pm.collectionVariables.set('fraudIdempotencyKey', 'idem-fraud-' + Date.now());"
+            ],
+            "type": "text/javascript"
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.response.to.have.status(202);",
+              "var body = pm.response.json();",
+              "pm.collectionVariables.set('fraudOrderId', body.orderId);",
+              "pm.collectionVariables.set('fraudAttempt', '0');"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "x-correlation-id",
+            "value": "{{fraudCorrelationId}}"
+          },
+          {
+            "key": "idempotency-key",
+            "value": "{{fraudIdempotencyKey}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"customerId\": \"fraud-customer\",\n  \"items\": [\n    {\n      \"productId\": \"SKU-4\",\n      \"quantity\": 1\n    }\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/orders",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "orders"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Get Fraud Rejected Order (Polling)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.response.to.have.status(200);",
+              "var body = pm.response.json();",
+              "var maxAttempts = parseInt(pm.collectionVariables.get('maxPollAttempts'), 10);",
+              "var delayMs = parseInt(pm.collectionVariables.get('pollDelayMs'), 10);",
+              "var attempt = parseInt(pm.collectionVariables.get('fraudAttempt') || '0', 10) + 1;",
+              "pm.collectionVariables.set('fraudAttempt', String(attempt));",
+              "",
+              "if (body.status !== 'FRAUD_DETECTED' && attempt < maxAttempts) {",
+              "  var start = Date.now();",
+              "  while (Date.now() - start < delayMs) {}",
+              "  postman.setNextRequest('Get Fraud Rejected Order (Polling)');",
+              "} else {",
+              "  pm.test('status final FRAUD_DETECTED', function () {",
+              "    pm.expect(body.status).to.eql('FRAUD_DETECTED');",
+              "  });",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/orders/{{fraudOrderId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "orders",
+            "{{fraudOrderId}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Idempotent Re-Create Approved Order",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('status 200 for idempotency', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "var body = pm.response.json();",
+              "pm.test('returns the same orderId', function () {",
+              "  pm.expect(body.orderId).to.eql(pm.collectionVariables.get('approvedOrderId'));",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "x-correlation-id",
+            "value": "corr-approved-idempotent-retry"
+          },
+          {
+            "key": "idempotency-key",
+            "value": "{{approvedIdempotencyKey}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"customerId\": \"customer-approved\",\n  \"items\": [\n    {\n      \"productId\": \"SKU-1\",\n      \"quantity\": 1\n    }\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/orders",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "orders"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Create And Cancel Order",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "pm.collectionVariables.set('cancelCorrelationId', 'corr-cancel-' + Date.now());",
+              "pm.collectionVariables.set('cancelIdempotencyKey', 'idem-cancel-' + Date.now());"
+            ],
+            "type": "text/javascript"
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.response.to.have.status(202);",
+              "var body = pm.response.json();",
+              "pm.collectionVariables.set('cancelOrderId', body.orderId);"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "x-correlation-id",
+            "value": "{{cancelCorrelationId}}"
+          },
+          {
+            "key": "idempotency-key",
+            "value": "{{cancelIdempotencyKey}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"customerId\": \"customer-cancel\",\n  \"items\": [\n    {\n      \"productId\": \"SKU-5\",\n      \"quantity\": 1\n    }\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/orders",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "orders"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Cancel Created Order",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.response.to.have.status(200);",
+              "var body = pm.response.json();",
+              "pm.test('cancelled order', function () {",
+              "  pm.expect(body.status).to.eql('CANCELLED');",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/orders/{{cancelOrderId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "orders",
+            "{{cancelOrderId}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "List Orders",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.response.to.have.status(200);",
+              "var body = pm.response.json();",
+              "pm.test('returns an array', function () {",
+              "  pm.expect(Array.isArray(body)).to.eql(true);",
+              "});",
+              "pm.test('contains scenario orders', function () {",
+              "  var ids = body.map(function (o) { return o.id; });",
+              "  pm.expect(ids).to.include(pm.collectionVariables.get('approvedOrderId'));",
+              "  pm.expect(ids).to.include(pm.collectionVariables.get('stockOrderId'));",
+              "  pm.expect(ids).to.include(pm.collectionVariables.get('paymentOrderId'));",
+              "  pm.expect(ids).to.include(pm.collectionVariables.get('fraudOrderId'));",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/orders",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "orders"
+          ]
+        }
+      }
+    }
+  ]
+}
