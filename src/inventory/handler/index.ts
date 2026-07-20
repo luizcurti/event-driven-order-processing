@@ -1,7 +1,11 @@
 import type { Handler } from 'aws-lambda';
 
 import { CheckInventoryUseCase } from '../application/check-inventory';
-import { createEventPublisher, createLogger, createOrderRepository } from '../../shared/infrastructure/factory';
+import {
+  createEventPublisher,
+  createLogger,
+  createOrderRepository
+} from '../../shared/infrastructure/factory';
 
 interface InventoryEvent {
   orderId: string;
@@ -20,6 +24,9 @@ const useCase = new CheckInventoryUseCase(
 );
 
 export const handler: Handler<InventoryEvent, unknown> = async (event) => {
-  logger.addContext({ correlationId: event.correlationId, orderId: event.orderId });
+  logger.addContext({
+    correlationId: event.correlationId,
+    orderId: event.orderId
+  });
   return useCase.execute(event.orderId, event.correlationId);
 };

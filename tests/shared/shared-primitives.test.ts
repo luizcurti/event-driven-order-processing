@@ -1,6 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { AppError, FraudException, InventoryException, OrderNotFoundException, PaymentException, ValidationError } from '../../src/shared/errors/app-errors';
+import {
+  AppError,
+  FraudException,
+  InventoryException,
+  OrderNotFoundException,
+  PaymentException,
+  ValidationError
+} from '../../src/shared/errors/app-errors';
 import { orderStatuses } from '../../src/shared/domain/order';
 import { PowertoolsStructuredLogger } from '../../src/shared/infrastructure/logger';
 import {
@@ -9,7 +16,10 @@ import {
   createSqsClientConfig,
   isLocalAwsRuntime
 } from '../../src/shared/infrastructure/aws-client-config';
-import { getCorrelationId, getIdempotencyKey } from '../../src/shared/utils/correlation';
+import {
+  getCorrelationId,
+  getIdempotencyKey
+} from '../../src/shared/utils/correlation';
 import { errorResponse, jsonResponse } from '../../src/shared/utils/http';
 import { createOrderSchema } from '../../src/shared/validation/order-schema';
 
@@ -94,7 +104,10 @@ describe('shared primitives', () => {
         'content-type': 'application/json',
         'access-control-allow-origin': '*'
       },
-      body: JSON.stringify({ error: 'VALIDATION_ERROR', message: 'bad request' })
+      body: JSON.stringify({
+        error: 'VALIDATION_ERROR',
+        message: 'bad request'
+      })
     });
 
     expect(errorResponse(new Error('boom'))).toEqual({
@@ -119,12 +132,18 @@ describe('shared primitives', () => {
     expect(new InventoryException().code).toBe('INVENTORY_ERROR');
     expect(new PaymentException().statusCode).toBe(402);
     expect(new FraudException().statusCode).toBe(403);
-    expect(new OrderNotFoundException('order-1').message).toBe('Order order-1 was not found.');
+    expect(new OrderNotFoundException('order-1').message).toBe(
+      'Order order-1 was not found.'
+    );
   });
 
   it('writes structured logs to stdout and stderr', () => {
-    const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
-    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    const stdoutSpy = vi
+      .spyOn(process.stdout, 'write')
+      .mockImplementation(() => true);
+    const stderrSpy = vi
+      .spyOn(process.stderr, 'write')
+      .mockImplementation(() => true);
     const logger = new PowertoolsStructuredLogger('test-service');
 
     logger.addContext({ correlationId: 'corr-1', orderId: 'order-1' });
@@ -132,9 +151,15 @@ describe('shared primitives', () => {
     logger.info('info without metadata');
     logger.error('error message', { status: 'ERROR' });
 
-    const infoEntry = JSON.parse(String(stdoutSpy.mock.calls[0]?.[0] ?? '')) as Record<string, string>;
-    const infoWithoutMetadata = JSON.parse(String(stdoutSpy.mock.calls[1]?.[0] ?? '')) as Record<string, string>;
-    const errorEntry = JSON.parse(String(stderrSpy.mock.calls[0]?.[0] ?? '')) as Record<string, string>;
+    const infoEntry = JSON.parse(
+      String(stdoutSpy.mock.calls[0]?.[0] ?? '')
+    ) as Record<string, string>;
+    const infoWithoutMetadata = JSON.parse(
+      String(stdoutSpy.mock.calls[1]?.[0] ?? '')
+    ) as Record<string, string>;
+    const errorEntry = JSON.parse(
+      String(stderrSpy.mock.calls[0]?.[0] ?? '')
+    ) as Record<string, string>;
 
     expect(infoEntry.service).toBe('test-service');
     expect(infoEntry.correlationId).toBe('corr-1');
@@ -174,7 +199,9 @@ describe('shared primitives', () => {
         secretAccessKey: 'custom-secret'
       }
     });
-    expect(createEventBridgeClientConfig()).toEqual(createDynamoDbClientConfig());
+    expect(createEventBridgeClientConfig()).toEqual(
+      createDynamoDbClientConfig()
+    );
     expect(createSqsClientConfig()).toEqual(createDynamoDbClientConfig());
   });
 });

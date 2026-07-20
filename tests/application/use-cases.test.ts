@@ -36,11 +36,28 @@ describe('application use cases', () => {
     await seedOrder(repository, 'order-1', 'customer-1', 1);
     await seedOrder(repository, 'order-2', 'customer-2', 1);
 
-    expect((await new GetOrderUseCase(repository).execute('order-1')).id).toBe('order-1');
-    await expect(new GetOrderUseCase(repository).execute('missing')).rejects.toThrow('Order missing was not found.');
-    expect((await new ListOrdersUseCase(repository).execute()).map((order) => order.id)).toEqual(['order-1', 'order-2']);
-    expect((await new CancelOrderUseCase(repository).execute('order-1')).status).toBe('CANCELLED');
-    expect((await new UpdateOrderStatusUseCase(repository).execute('order-2', 'APPROVED')).status).toBe('APPROVED');
+    expect((await new GetOrderUseCase(repository).execute('order-1')).id).toBe(
+      'order-1'
+    );
+    await expect(
+      new GetOrderUseCase(repository).execute('missing')
+    ).rejects.toThrow('Order missing was not found.');
+    expect(
+      (await new ListOrdersUseCase(repository).execute()).map(
+        (order) => order.id
+      )
+    ).toEqual(['order-1', 'order-2']);
+    expect(
+      (await new CancelOrderUseCase(repository).execute('order-1')).status
+    ).toBe('CANCELLED');
+    expect(
+      (
+        await new UpdateOrderStatusUseCase(repository).execute(
+          'order-2',
+          'APPROVED'
+        )
+      ).status
+    ).toBe('APPROVED');
   });
 
   it('covers inventory success, inventory failure and missing order cases', async () => {
@@ -63,9 +80,17 @@ describe('application use cases', () => {
       logger
     );
 
-    expect((await inventoryEnabled.execute('available', 'corr-1')).inventoryStatus).toBe('AVAILABLE');
-    expect((await inventoryEnabled.execute('missing-stock', 'corr-2')).inventoryStatus).toBe('OUT_OF_STOCK');
-    expect((await inventoryDisabled.execute('missing-stock', 'corr-3')).inventoryStatus).toBe('AVAILABLE');
+    expect(
+      (await inventoryEnabled.execute('available', 'corr-1')).inventoryStatus
+    ).toBe('AVAILABLE');
+    expect(
+      (await inventoryEnabled.execute('missing-stock', 'corr-2'))
+        .inventoryStatus
+    ).toBe('OUT_OF_STOCK');
+    expect(
+      (await inventoryDisabled.execute('missing-stock', 'corr-3'))
+        .inventoryStatus
+    ).toBe('AVAILABLE');
     await expect(inventoryEnabled.execute('missing', 'corr-4')).rejects.toThrow(
       'Order missing was not found for inventory validation.'
     );
@@ -78,11 +103,21 @@ describe('application use cases', () => {
     await seedOrder(repository, 'approved', 'customer-1', 1);
     await seedOrder(repository, 'failed', 'fail-payment-customer', 1);
 
-    const useCase = new ProcessPaymentUseCase(repository, eventPublisher, logger);
+    const useCase = new ProcessPaymentUseCase(
+      repository,
+      eventPublisher,
+      logger
+    );
 
-    expect((await useCase.execute('approved', 'corr-1')).paymentStatus).toBe('APPROVED');
-    expect((await useCase.execute('failed', 'corr-2')).paymentStatus).toBe('FAILED');
-    await expect(useCase.execute('missing', 'corr-3')).rejects.toThrow('Order missing was not found for payment processing.');
+    expect((await useCase.execute('approved', 'corr-1')).paymentStatus).toBe(
+      'APPROVED'
+    );
+    expect((await useCase.execute('failed', 'corr-2')).paymentStatus).toBe(
+      'FAILED'
+    );
+    await expect(useCase.execute('missing', 'corr-3')).rejects.toThrow(
+      'Order missing was not found for payment processing.'
+    );
   });
 
   it('covers fraud approval, rejection, feature flag bypass and missing order cases', async () => {
@@ -105,10 +140,18 @@ describe('application use cases', () => {
       logger
     );
 
-    expect((await enabled.execute('approved', 'corr-1')).fraudStatus).toBe('APPROVED');
-    expect((await enabled.execute('rejected', 'corr-2')).fraudStatus).toBe('REJECTED');
-    expect((await disabled.execute('rejected', 'corr-3')).fraudStatus).toBe('APPROVED');
-    await expect(enabled.execute('missing', 'corr-4')).rejects.toThrow('Order missing was not found for fraud analysis.');
+    expect((await enabled.execute('approved', 'corr-1')).fraudStatus).toBe(
+      'APPROVED'
+    );
+    expect((await enabled.execute('rejected', 'corr-2')).fraudStatus).toBe(
+      'REJECTED'
+    );
+    expect((await disabled.execute('rejected', 'corr-3')).fraudStatus).toBe(
+      'APPROVED'
+    );
+    await expect(enabled.execute('missing', 'corr-4')).rejects.toThrow(
+      'Order missing was not found for fraud analysis.'
+    );
   });
 
   it('processes shipping and notification messages', async () => {
@@ -117,7 +160,11 @@ describe('application use cases', () => {
     const logger = new FakeLogger();
     await seedOrder(repository, 'ship-1', 'customer-1', 1);
 
-    await new ProcessShippingUseCase(repository, eventPublisher, logger).execute({
+    await new ProcessShippingUseCase(
+      repository,
+      eventPublisher,
+      logger
+    ).execute({
       Records: [
         {
           messageId: 'message-1',
@@ -139,7 +186,10 @@ describe('application use cases', () => {
     });
 
     expect((await repository.findById('ship-1'))?.status).toBe('DELIVERED');
-    expect(eventPublisher.events.map((event) => event.detailType)).toEqual(['ShippingStarted', 'ShippingCompleted']);
+    expect(eventPublisher.events.map((event) => event.detailType)).toEqual([
+      'ShippingStarted',
+      'ShippingCompleted'
+    ]);
 
     await new SendNotificationUseCase(logger).execute({
       Records: [

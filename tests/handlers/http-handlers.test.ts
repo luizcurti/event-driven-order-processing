@@ -1,11 +1,17 @@
-import type { APIGatewayProxyEventV2, APIGatewayProxyStructuredResultV2, APIGatewayProxyHandlerV2 } from 'aws-lambda';
+import type {
+  APIGatewayProxyEventV2,
+  APIGatewayProxyStructuredResultV2,
+  APIGatewayProxyHandlerV2
+} from 'aws-lambda';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { InMemoryOrderRepository } from '../../src/shared/infrastructure/repositories/in-memory-order-repository';
 import { FakeEventPublisher, FakeLogger } from '../support/fakes';
 
-const baseEvent = (overrides: Partial<APIGatewayProxyEventV2> = {}): APIGatewayProxyEventV2 => ({
+const baseEvent = (
+  overrides: Partial<APIGatewayProxyEventV2> = {}
+): APIGatewayProxyEventV2 => ({
   version: '2.0',
   routeKey: '$default',
   rawPath: '/orders',
@@ -42,7 +48,10 @@ const invokeHandler = async (
   return result as APIGatewayProxyStructuredResultV2;
 };
 
-const seedOrder = async (repository: InMemoryOrderRepository, orderId = 'order-1'): Promise<void> => {
+const seedOrder = async (
+  repository: InMemoryOrderRepository,
+  orderId = 'order-1'
+): Promise<void> => {
   await repository.create({
     id: orderId,
     customerId: 'customer-1',
@@ -78,14 +87,20 @@ describe('HTTP handlers', () => {
     const created = await invokeHandler(
       handler,
       baseEvent({
-        body: JSON.stringify({ customerId: 'customer-1', items: [{ productId: 'SKU-1', quantity: 1 }] }),
+        body: JSON.stringify({
+          customerId: 'customer-1',
+          items: [{ productId: 'SKU-1', quantity: 1 }]
+        }),
         headers: { 'x-correlation-id': 'corr-1', 'idempotency-key': 'idem-1' }
       })
     );
     const reused = await invokeHandler(
       handler,
       baseEvent({
-        body: JSON.stringify({ customerId: 'customer-1', items: [{ productId: 'SKU-1', quantity: 1 }] }),
+        body: JSON.stringify({
+          customerId: 'customer-1',
+          items: [{ productId: 'SKU-1', quantity: 1 }]
+        }),
         headers: { 'x-correlation-id': 'corr-1', 'idempotency-key': 'idem-1' }
       })
     );
@@ -122,7 +137,10 @@ describe('HTTP handlers', () => {
 
     const { handler } = await import('../../src/create-order/handler/index');
     const event = baseEvent({
-      body: JSON.stringify({ customerId: 'customer-1', items: [{ productId: 'SKU-1', quantity: 1 }] }),
+      body: JSON.stringify({
+        customerId: 'customer-1',
+        items: [{ productId: 'SKU-1', quantity: 1 }]
+      }),
       requestContext: { ...baseEvent().requestContext }
     });
     Reflect.deleteProperty(event.requestContext, 'requestId');
@@ -144,9 +162,36 @@ describe('HTTP handlers', () => {
     }));
 
     const { handler } = await import('../../src/orders/handler/get-order');
-    const success = await invokeHandler(handler, baseEvent({ pathParameters: { id: 'order-1' }, requestContext: { ...baseEvent().requestContext, http: { ...baseEvent().requestContext.http, method: 'GET' } } }));
-    const missingId = await invokeHandler(handler, baseEvent({ pathParameters: {}, requestContext: { ...baseEvent().requestContext, http: { ...baseEvent().requestContext.http, method: 'GET' } } }));
-    const notFound = await invokeHandler(handler, baseEvent({ pathParameters: { id: 'missing' }, requestContext: { ...baseEvent().requestContext, http: { ...baseEvent().requestContext.http, method: 'GET' } } }));
+    const success = await invokeHandler(
+      handler,
+      baseEvent({
+        pathParameters: { id: 'order-1' },
+        requestContext: {
+          ...baseEvent().requestContext,
+          http: { ...baseEvent().requestContext.http, method: 'GET' }
+        }
+      })
+    );
+    const missingId = await invokeHandler(
+      handler,
+      baseEvent({
+        pathParameters: {},
+        requestContext: {
+          ...baseEvent().requestContext,
+          http: { ...baseEvent().requestContext.http, method: 'GET' }
+        }
+      })
+    );
+    const notFound = await invokeHandler(
+      handler,
+      baseEvent({
+        pathParameters: { id: 'missing' },
+        requestContext: {
+          ...baseEvent().requestContext,
+          http: { ...baseEvent().requestContext.http, method: 'GET' }
+        }
+      })
+    );
 
     expect(success.statusCode).toBe(200);
     expect(missingId.statusCode).toBe(400);
@@ -173,7 +218,10 @@ describe('HTTP handlers', () => {
     const { handler } = await import('../../src/orders/handler/get-order');
     const event = baseEvent({
       pathParameters: { id: 'order-1' },
-      requestContext: { ...baseEvent().requestContext, http: { ...baseEvent().requestContext.http, method: 'GET' } }
+      requestContext: {
+        ...baseEvent().requestContext,
+        http: { ...baseEvent().requestContext.http, method: 'GET' }
+      }
     });
     Reflect.deleteProperty(event.requestContext, 'requestId');
     const response = await invokeHandler(handler, event);
@@ -189,7 +237,10 @@ describe('HTTP handlers', () => {
       create: vi.fn(),
       findById: vi.fn(),
       findByIdempotencyKey: vi.fn(),
-      list: vi.fn().mockResolvedValueOnce([]).mockRejectedValueOnce(new Error('boom')),
+      list: vi
+        .fn()
+        .mockResolvedValueOnce([])
+        .mockRejectedValueOnce(new Error('boom')),
       updateStatus: vi.fn()
     };
 
@@ -199,8 +250,24 @@ describe('HTTP handlers', () => {
     }));
 
     const { handler } = await import('../../src/orders/handler/list-orders');
-    const success = await invokeHandler(handler, baseEvent({ requestContext: { ...baseEvent().requestContext, http: { ...baseEvent().requestContext.http, method: 'GET' } } }));
-    const failure = await invokeHandler(handler, baseEvent({ requestContext: { ...baseEvent().requestContext, http: { ...baseEvent().requestContext.http, method: 'GET' } } }));
+    const success = await invokeHandler(
+      handler,
+      baseEvent({
+        requestContext: {
+          ...baseEvent().requestContext,
+          http: { ...baseEvent().requestContext.http, method: 'GET' }
+        }
+      })
+    );
+    const failure = await invokeHandler(
+      handler,
+      baseEvent({
+        requestContext: {
+          ...baseEvent().requestContext,
+          http: { ...baseEvent().requestContext.http, method: 'GET' }
+        }
+      })
+    );
 
     expect(success.statusCode).toBe(200);
     expect(failure.statusCode).toBe(500);
@@ -225,7 +292,10 @@ describe('HTTP handlers', () => {
 
     const { handler } = await import('../../src/orders/handler/list-orders');
     const event = baseEvent({
-      requestContext: { ...baseEvent().requestContext, http: { ...baseEvent().requestContext.http, method: 'GET' } }
+      requestContext: {
+        ...baseEvent().requestContext,
+        http: { ...baseEvent().requestContext.http, method: 'GET' }
+      }
     });
     Reflect.deleteProperty(event.requestContext, 'requestId');
     const response = await invokeHandler(handler, event);
@@ -246,8 +316,26 @@ describe('HTTP handlers', () => {
     }));
 
     const { handler } = await import('../../src/orders/handler/cancel-order');
-    const success = await invokeHandler(handler, baseEvent({ pathParameters: { id: 'order-1' }, requestContext: { ...baseEvent().requestContext, http: { ...baseEvent().requestContext.http, method: 'DELETE' } } }));
-    const missingId = await invokeHandler(handler, baseEvent({ pathParameters: {}, requestContext: { ...baseEvent().requestContext, http: { ...baseEvent().requestContext.http, method: 'DELETE' } } }));
+    const success = await invokeHandler(
+      handler,
+      baseEvent({
+        pathParameters: { id: 'order-1' },
+        requestContext: {
+          ...baseEvent().requestContext,
+          http: { ...baseEvent().requestContext.http, method: 'DELETE' }
+        }
+      })
+    );
+    const missingId = await invokeHandler(
+      handler,
+      baseEvent({
+        pathParameters: {},
+        requestContext: {
+          ...baseEvent().requestContext,
+          http: { ...baseEvent().requestContext.http, method: 'DELETE' }
+        }
+      })
+    );
 
     expect(success.statusCode).toBe(200);
     expect(missingId.statusCode).toBe(400);
@@ -273,7 +361,10 @@ describe('HTTP handlers', () => {
     const { handler } = await import('../../src/orders/handler/cancel-order');
     const event = baseEvent({
       pathParameters: { id: 'order-1' },
-      requestContext: { ...baseEvent().requestContext, http: { ...baseEvent().requestContext.http, method: 'DELETE' } }
+      requestContext: {
+        ...baseEvent().requestContext,
+        http: { ...baseEvent().requestContext.http, method: 'DELETE' }
+      }
     });
     Reflect.deleteProperty(event.requestContext, 'requestId');
     const response = await invokeHandler(handler, event);

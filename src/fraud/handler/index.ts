@@ -1,7 +1,11 @@
 import type { Handler } from 'aws-lambda';
 
 import { CheckFraudUseCase } from '../application/check-fraud';
-import { createEventPublisher, createLogger, createOrderRepository } from '../../shared/infrastructure/factory';
+import {
+  createEventPublisher,
+  createLogger,
+  createOrderRepository
+} from '../../shared/infrastructure/factory';
 
 interface FraudEvent {
   orderId: string;
@@ -20,6 +24,9 @@ const useCase = new CheckFraudUseCase(
 );
 
 export const handler: Handler<FraudEvent, unknown> = async (event) => {
-  logger.addContext({ correlationId: event.correlationId, orderId: event.orderId });
+  logger.addContext({
+    correlationId: event.correlationId,
+    orderId: event.orderId
+  });
   return useCase.execute(event.orderId, event.correlationId);
 };

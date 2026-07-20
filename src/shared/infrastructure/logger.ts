@@ -19,7 +19,11 @@ export class PowertoolsStructuredLogger implements StructuredLogger {
     this.write('ERROR', message, metadata);
   }
 
-  private write(level: LogLevel, message: string, metadata?: Record<string, unknown>): void {
+  private write(
+    level: LogLevel,
+    message: string,
+    metadata?: Record<string, unknown>
+  ): void {
     const entry = {
       level,
       message,

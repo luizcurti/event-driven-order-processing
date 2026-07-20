@@ -1,11 +1,17 @@
-import type { EventPublisher, OrderRepository, QueuePublisher, StructuredLogger } from '../application/ports';
+import type {
+  EventPublisher,
+  OrderRepository,
+  QueuePublisher,
+  StructuredLogger
+} from '../application/ports';
 
 import { PowertoolsStructuredLogger } from './logger';
 import { EventBridgePublisher } from './publishers/eventbridge-publisher';
 import { SqsQueuePublisher } from './publishers/sqs-queue-publisher';
 import { DynamoDbOrderRepository } from './repositories/dynamodb-order-repository';
 
-export const createLogger = (serviceName: string): StructuredLogger => new PowertoolsStructuredLogger(serviceName);
+export const createLogger = (serviceName: string): StructuredLogger =>
+  new PowertoolsStructuredLogger(serviceName);
 
 export const createOrderRepository = (): OrderRepository => {
   const tableName = process.env.ORDERS_TABLE_NAME;
@@ -27,4 +33,5 @@ export const createEventPublisher = (): EventPublisher => {
   return new EventBridgePublisher(eventBusName);
 };
 
-export const createQueuePublisher = (): QueuePublisher => new SqsQueuePublisher();
+export const createQueuePublisher = (): QueuePublisher =>
+  new SqsQueuePublisher();

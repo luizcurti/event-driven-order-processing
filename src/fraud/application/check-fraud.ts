@@ -1,4 +1,9 @@
-import type { EventPublisher, FeatureFlags, OrderRepository, StructuredLogger } from '../../shared/application/ports';
+import type {
+  EventPublisher,
+  FeatureFlags,
+  OrderRepository,
+  StructuredLogger
+} from '../../shared/application/ports';
 import type { EventEnvelope } from '../../shared/domain/order';
 import type { OrderEventDetail } from '../../shared/domain/events';
 
@@ -24,27 +29,39 @@ export class CheckFraudUseCase {
     }
 
     const fraudStatus =
-      this.featureFlags.fraudCheckEnabled && order.customerId.toLowerCase().includes('fraud')
+      this.featureFlags.fraudCheckEnabled &&
+      order.customerId.toLowerCase().includes('fraud')
         ? 'REJECTED'
         : 'APPROVED';
 
-    await this.repository.updateStatus(orderId, fraudStatus === 'APPROVED' ? 'APPROVED' : 'FRAUD_DETECTED');
+    await this.repository.updateStatus(
+      orderId,
+      fraudStatus === 'APPROVED' ? 'APPROVED' : 'FRAUD_DETECTED'
+    );
 
     const event: EventEnvelope<OrderEventDetail> = {
       source: 'order.processing',
-      detailType: fraudStatus === 'APPROVED' ? 'FraudApproved' : 'FraudRejected',
+      detailType:
+        fraudStatus === 'APPROVED' ? 'FraudApproved' : 'FraudRejected',
       version: 'v1',
       correlationId,
       timestamp: new Date().toISOString(),
       detail: {
         orderId,
         status: fraudStatus === 'APPROVED' ? 'APPROVED' : 'FRAUD_DETECTED',
-        reason: fraudStatus === 'APPROVED' ? undefined : 'Fraud score exceeded the configured threshold.'
+        reason:
+          fraudStatus === 'APPROVED'
+            ? undefined
+            : 'Fraud score exceeded the configured threshold.'
       }
     };
 
     await this.eventPublisher.publish(event);
-    this.logger.info('Fraud analysis completed.', { orderId, correlationId, fraudStatus });
+    this.logger.info('Fraud analysis completed.', {
+      orderId,
+      correlationId,
+      fraudStatus
+    });
 
     return { orderId, fraudStatus, correlationId };
   }

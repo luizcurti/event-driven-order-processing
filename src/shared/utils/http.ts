@@ -14,7 +14,9 @@ export const jsonResponse = (
   body: JSON.stringify(body)
 });
 
-export const errorResponse = (error: unknown): APIGatewayProxyStructuredResultV2 => {
+export const errorResponse = (
+  error: unknown
+): APIGatewayProxyStructuredResultV2 => {
   if (error instanceof AppError) {
     return jsonResponse(error.statusCode, {
       error: error.code,

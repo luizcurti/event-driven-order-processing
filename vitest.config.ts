@@ -10,7 +10,10 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'lcov'],
       include: ['src/**/*.ts'],
-      exclude: ['src/shared/application/ports.ts', 'src/shared/domain/events.ts'],
+      exclude: [
+        'src/shared/application/ports.ts',
+        'src/shared/domain/events.ts'
+      ],
       thresholds: {
         statements: 100,
         branches: 100,

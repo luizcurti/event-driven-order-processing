@@ -1,7 +1,11 @@
 import http from 'node:http';
 import { URL } from 'node:url';
 
-import { DeleteMessageBatchCommand, ReceiveMessageCommand, SQSClient } from '@aws-sdk/client-sqs';
+import {
+  DeleteMessageBatchCommand,
+  ReceiveMessageCommand,
+  SQSClient
+} from '@aws-sdk/client-sqs';
 import type { APIGatewayProxyStructuredResultV2 } from 'aws-lambda';
 
 import { CreateOrderUseCase } from '../../src/create-order/application/create-order';
@@ -15,7 +19,11 @@ import { ProcessPaymentUseCase } from '../../src/payment/application/process-pay
 import type { EventEnvelope } from '../../src/shared/domain/order';
 import type { OrderEventDetail } from '../../src/shared/domain/events';
 import { ValidationError } from '../../src/shared/errors/app-errors';
-import { createEventPublisher, createLogger, createOrderRepository } from '../../src/shared/infrastructure/factory';
+import {
+  createEventPublisher,
+  createLogger,
+  createOrderRepository
+} from '../../src/shared/infrastructure/factory';
 import { createSqsClientConfig } from '../../src/shared/infrastructure/aws-client-config';
 import { createQueuePublisher } from '../../src/shared/infrastructure/factory';
 import { errorResponse, jsonResponse } from '../../src/shared/utils/http';
@@ -43,9 +51,14 @@ const readBody = async (request: http.IncomingMessage): Promise<string> => {
   return Buffer.concat(chunks).toString('utf8');
 };
 
-const sendResponse = (response: http.ServerResponse, payload: APIGatewayProxyStructuredResultV2): void => {
+const sendResponse = (
+  response: http.ServerResponse,
+  payload: APIGatewayProxyStructuredResultV2
+): void => {
   const headers = Object.fromEntries(
-    Object.entries(payload.headers ?? { 'content-type': 'application/json' }).map(([key, value]) => [key, String(value)])
+    Object.entries(
+      payload.headers ?? { 'content-type': 'application/json' }
+    ).map(([key, value]) => [key, String(value)])
   );
 
   response.writeHead(payload.statusCode ?? 200, headers);
@@ -73,7 +86,9 @@ const toSqsEvent = (messageBody: string) => ({
   ]
 });
 
-export const startLocalServer = async (port = Number(process.env.PORT ?? 3000)): Promise<LocalServerHandle> => {
+export const startLocalServer = async (
+  port = Number(process.env.PORT ?? 3000)
+): Promise<LocalServerHandle> => {
   const resources = await ensureLocalstackResources();
 
   const logger = createLogger('local-server');
@@ -82,7 +97,11 @@ export const startLocalServer = async (port = Number(process.env.PORT ?? 3000)):
   const queuePublisher = createQueuePublisher();
   const sqsClient = new SQSClient(createSqsClientConfig());
 
-  const createOrderUseCase = new CreateOrderUseCase(repository, eventPublisher, logger);
+  const createOrderUseCase = new CreateOrderUseCase(
+    repository,
+    eventPublisher,
+    logger
+  );
   const getOrderUseCase = new GetOrderUseCase(repository);
   const listOrdersUseCase = new ListOrdersUseCase(repository);
   const cancelOrderUseCase = new CancelOrderUseCase(repository);
@@ -92,14 +111,22 @@ export const startLocalServer = async (port = Number(process.env.PORT ?? 3000)):
     { inventoryCheckEnabled: true, fraudCheckEnabled: true },
     logger
   );
-  const paymentUseCase = new ProcessPaymentUseCase(repository, eventPublisher, logger);
+  const paymentUseCase = new ProcessPaymentUseCase(
+    repository,
+    eventPublisher,
+    logger
+  );
   const fraudUseCase = new CheckFraudUseCase(
     repository,
     eventPublisher,
     { inventoryCheckEnabled: true, fraudCheckEnabled: true },
     logger
   );
-  const shippingUseCase = new ProcessShippingUseCase(repository, eventPublisher, logger);
+  const shippingUseCase = new ProcessShippingUseCase(
+    repository,
+    eventPublisher,
+    logger
+  );
   const notificationUseCase = new SendNotificationUseCase(logger);
 
   const drainQueue = async (
@@ -137,7 +164,10 @@ export const startLocalServer = async (port = Number(process.env.PORT ?? 3000)):
     }
   };
 
-  const publishOrderApproved = async (orderId: string, correlationId: string): Promise<void> => {
+  const publishOrderApproved = async (
+    orderId: string,
+    correlationId: string
+  ): Promise<void> => {
     const event: EventEnvelope<OrderEventDetail> = {
       source: 'order.processing',
       detailType: 'OrderApproved',
@@ -153,8 +183,14 @@ export const startLocalServer = async (port = Number(process.env.PORT ?? 3000)):
     await eventPublisher.publish(event);
   };
 
-  const processOrderWorkflow = async (orderId: string, correlationId: string): Promise<void> => {
-    const inventoryResult = await inventoryUseCase.execute(orderId, correlationId);
+  const processOrderWorkflow = async (
+    orderId: string,
+    correlationId: string
+  ): Promise<void> => {
+    const inventoryResult = await inventoryUseCase.execute(
+      orderId,
+      correlationId
+    );
 
     if (inventoryResult.inventoryStatus === 'OUT_OF_STOCK') {
       await queuePublisher.send(resources.notificationQueueUrl, {
@@ -200,14 +236,23 @@ export const startLocalServer = async (port = Number(process.env.PORT ?? 3000)):
     }
 
     await publishOrderApproved(orderId, correlationId);
-    await queuePublisher.send(resources.shippingQueueUrl, { orderId, correlationId });
+    await queuePublisher.send(resources.shippingQueueUrl, {
+      orderId,
+      correlationId
+    });
     await drainQueue(resources.shippingQueueUrl, async (messageBody) => {
       await shippingUseCase.execute(toSqsEvent(messageBody));
     });
   };
 
-  const handleRequest = async (request: http.IncomingMessage, response: http.ServerResponse): Promise<void> => {
-    const url = new URL(request.url ?? '/', `http://${request.headers.host ?? 'localhost'}`);
+  const handleRequest = async (
+    request: http.IncomingMessage,
+    response: http.ServerResponse
+  ): Promise<void> => {
+    const url = new URL(
+      request.url ?? '/',
+      `http://${request.headers.host ?? 'localhost'}`
+    );
 
     try {
       if (request.method === 'POST' && url.pathname === '/orders') {
@@ -218,8 +263,12 @@ export const startLocalServer = async (port = Number(process.env.PORT ?? 3000)):
         }
 
         const payload = createOrderSchema.parse(JSON.parse(rawBody));
-        const correlationId = request.headers['x-correlation-id']?.toString().trim() || crypto.randomUUID();
-        const idempotencyKey = request.headers['idempotency-key']?.toString().trim() || crypto.randomUUID();
+        const correlationId =
+          request.headers['x-correlation-id']?.toString().trim() ||
+          crypto.randomUUID();
+        const idempotencyKey =
+          request.headers['idempotency-key']?.toString().trim() ||
+          crypto.randomUUID();
 
         const result = await createOrderUseCase.execute({
           ...payload,
@@ -242,7 +291,10 @@ export const startLocalServer = async (port = Number(process.env.PORT ?? 3000)):
       }
 
       if (request.method === 'GET' && url.pathname === '/orders') {
-        sendResponse(response, jsonResponse(200, await listOrdersUseCase.execute()));
+        sendResponse(
+          response,
+          jsonResponse(200, await listOrdersUseCase.execute())
+        );
         return;
       }
 
@@ -250,17 +302,26 @@ export const startLocalServer = async (port = Number(process.env.PORT ?? 3000)):
         const orderId = url.pathname.replace('/orders/', '');
 
         if (request.method === 'GET') {
-          sendResponse(response, jsonResponse(200, await getOrderUseCase.execute(orderId)));
+          sendResponse(
+            response,
+            jsonResponse(200, await getOrderUseCase.execute(orderId))
+          );
           return;
         }
 
         if (request.method === 'DELETE') {
-          sendResponse(response, jsonResponse(200, await cancelOrderUseCase.execute(orderId)));
+          sendResponse(
+            response,
+            jsonResponse(200, await cancelOrderUseCase.execute(orderId))
+          );
           return;
         }
       }
 
-      sendResponse(response, jsonResponse(404, { error: 'NOT_FOUND', message: 'Route not found.' }));
+      sendResponse(
+        response,
+        jsonResponse(404, { error: 'NOT_FOUND', message: 'Route not found.' })
+      );
     } catch (error) {
       sendResponse(response, errorResponse(error));
     }

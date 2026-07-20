@@ -33,10 +33,9 @@ describe('infrastructure adapters', () => {
 
   it('publishes events to EventBridge', async () => {
     const send = vi.fn().mockResolvedValue({});
-    const publisher = new EventBridgePublisher(
-      'event-bus',
-      { send } as unknown as ConstructorParameters<typeof EventBridgePublisher>[1]
-    );
+    const publisher = new EventBridgePublisher('event-bus', {
+      send
+    } as unknown as ConstructorParameters<typeof EventBridgePublisher>[1]);
 
     await publisher.publish({
       source: 'order.processing',
@@ -52,7 +51,9 @@ describe('infrastructure adapters', () => {
 
   it('sends messages to SQS', async () => {
     const send = vi.fn().mockResolvedValue({});
-    const publisher = new SqsQueuePublisher({ send } as unknown as ConstructorParameters<typeof SqsQueuePublisher>[0]);
+    const publisher = new SqsQueuePublisher({
+      send
+    } as unknown as ConstructorParameters<typeof SqsQueuePublisher>[0]);
 
     await publisher.send('queue-url', { orderId: 'order-1' });
 
@@ -84,17 +85,27 @@ describe('infrastructure adapters', () => {
 
     expect(await repository.findById('missing')).toBeNull();
     expect((await repository.findById('order-1'))?.id).toBe('order-1');
-    expect((await repository.findByIdempotencyKey('idem-2'))?.id).toBe('order-2');
-    expect(await repository.findByIdempotencyKey('missing')).toBeNull();
-    expect((await repository.list()).map((order) => order.id)).toEqual(['order-2', 'order-1']);
-    expect((await repository.updateStatus('order-1', 'APPROVED')).status).toBe('APPROVED');
-    await expect(Promise.resolve().then(() => repository.updateStatus('missing', 'APPROVED'))).rejects.toThrow(
-      'Order missing was not found.'
+    expect((await repository.findByIdempotencyKey('idem-2'))?.id).toBe(
+      'order-2'
     );
+    expect(await repository.findByIdempotencyKey('missing')).toBeNull();
+    expect((await repository.list()).map((order) => order.id)).toEqual([
+      'order-2',
+      'order-1'
+    ]);
+    expect((await repository.updateStatus('order-1', 'APPROVED')).status).toBe(
+      'APPROVED'
+    );
+    await expect(
+      Promise.resolve().then(() =>
+        repository.updateStatus('missing', 'APPROVED')
+      )
+    ).rejects.toThrow('Order missing was not found.');
   });
 
   it('persists and reads orders through the DynamoDB repository adapter', async () => {
-    const { DynamoDbOrderRepository } = await import('../../src/shared/infrastructure/repositories/dynamodb-order-repository');
+    const { DynamoDbOrderRepository } =
+      await import('../../src/shared/infrastructure/repositories/dynamodb-order-repository');
     const repository = new DynamoDbOrderRepository('orders-table');
 
     documentSendMock.mockResolvedValueOnce({});
@@ -126,7 +137,9 @@ describe('infrastructure adapters', () => {
         idempotencyKey: 'idem-1'
       }
     });
-    expect((await repository.findById('order-1'))?.customerId).toBe('customer-1');
+    expect((await repository.findById('order-1'))?.customerId).toBe(
+      'customer-1'
+    );
 
     documentSendMock.mockResolvedValueOnce({ Items: [] });
     expect(await repository.findByIdempotencyKey('missing')).toBeNull();
@@ -152,7 +165,9 @@ describe('infrastructure adapters', () => {
         }
       ]
     });
-    expect((await repository.findByIdempotencyKey('idem-1'))?.id).toBe('order-1');
+    expect((await repository.findByIdempotencyKey('idem-1'))?.id).toBe(
+      'order-1'
+    );
 
     documentSendMock.mockResolvedValueOnce({
       Items: [
@@ -182,10 +197,15 @@ describe('infrastructure adapters', () => {
         }
       ]
     });
-    expect((await repository.list()).map((order) => order.id)).toEqual(['order-2', 'order-1']);
+    expect((await repository.list()).map((order) => order.id)).toEqual([
+      'order-2',
+      'order-1'
+    ]);
 
     documentSendMock.mockResolvedValueOnce({ Attributes: undefined });
-    await expect(repository.updateStatus('missing', 'APPROVED')).rejects.toThrow('Order missing was not found.');
+    await expect(
+      repository.updateStatus('missing', 'APPROVED')
+    ).rejects.toThrow('Order missing was not found.');
 
     documentSendMock.mockResolvedValueOnce({
       Attributes: {
@@ -201,6 +221,8 @@ describe('infrastructure adapters', () => {
         idempotencyKey: 'idem-1'
       }
     });
-    expect((await repository.updateStatus('order-1', 'APPROVED')).status).toBe('APPROVED');
+    expect((await repository.updateStatus('order-1', 'APPROVED')).status).toBe(
+      'APPROVED'
+    );
   });
 });

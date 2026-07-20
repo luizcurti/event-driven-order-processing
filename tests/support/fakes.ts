@@ -33,11 +33,21 @@ export class FakeLogger implements StructuredLogger {
   }
 
   info(message: string, metadata?: Record<string, unknown>): void {
-    this.entries.push({ level: 'INFO', message, ...this.context, ...(metadata ?? {}) });
+    this.entries.push({
+      level: 'INFO',
+      message,
+      ...this.context,
+      ...(metadata ?? {})
+    });
   }
 
   error(message: string, metadata?: Record<string, unknown>): void {
-    this.entries.push({ level: 'ERROR', message, ...this.context, ...(metadata ?? {}) });
+    this.entries.push({
+      level: 'ERROR',
+      message,
+      ...this.context,
+      ...(metadata ?? {})
+    });
   }
 }
 

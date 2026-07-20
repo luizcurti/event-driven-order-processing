@@ -3,7 +3,8 @@ import type { EventBridgeClientConfig } from '@aws-sdk/client-eventbridge';
 import type { SQSClientConfig } from '@aws-sdk/client-sqs';
 
 const isLocalAwsRuntimeEnabled = (): boolean =>
-  process.env.LOCAL_AWS_ENDPOINT !== undefined || process.env.USE_LOCALSTACK === 'true';
+  process.env.LOCAL_AWS_ENDPOINT !== undefined ||
+  process.env.USE_LOCALSTACK === 'true';
 
 const buildLocalAwsClientConfig = () => {
   if (!isLocalAwsRuntimeEnabled()) {
@@ -22,10 +23,13 @@ const buildLocalAwsClientConfig = () => {
   };
 };
 
-export const createDynamoDbClientConfig = (): DynamoDBClientConfig => buildLocalAwsClientConfig();
+export const createDynamoDbClientConfig = (): DynamoDBClientConfig =>
+  buildLocalAwsClientConfig();
 
-export const createEventBridgeClientConfig = (): EventBridgeClientConfig => buildLocalAwsClientConfig();
+export const createEventBridgeClientConfig = (): EventBridgeClientConfig =>
+  buildLocalAwsClientConfig();
 
-export const createSqsClientConfig = (): SQSClientConfig => buildLocalAwsClientConfig();
+export const createSqsClientConfig = (): SQSClientConfig =>
+  buildLocalAwsClientConfig();
 
 export const isLocalAwsRuntime = isLocalAwsRuntimeEnabled;

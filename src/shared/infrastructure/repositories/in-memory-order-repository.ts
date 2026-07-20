@@ -17,13 +17,17 @@ export class InMemoryOrderRepository implements OrderRepository {
 
   findByIdempotencyKey(idempotencyKey: string): Promise<Order | null> {
     return Promise.resolve(
-      [...this.orders.values()].find((order) => order.idempotencyKey === idempotencyKey) ?? null
+      [...this.orders.values()].find(
+        (order) => order.idempotencyKey === idempotencyKey
+      ) ?? null
     );
   }
 
   list(): Promise<Order[]> {
     return Promise.resolve(
-      [...this.orders.values()].sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+      [...this.orders.values()].sort((left, right) =>
+        right.createdAt.localeCompare(left.createdAt)
+      )
     );
   }
 

@@ -1,4 +1,7 @@
-import { EventBridgeClient, PutEventsCommand } from '@aws-sdk/client-eventbridge';
+import {
+  EventBridgeClient,
+  PutEventsCommand
+} from '@aws-sdk/client-eventbridge';
 
 import type { EventPublisher } from '../../application/ports';
 import type { EventEnvelope } from '../../domain/order';

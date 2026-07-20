@@ -1,6 +1,10 @@
 import type { SQSEvent } from 'aws-lambda';
 
-import type { EventPublisher, OrderRepository, StructuredLogger } from '../../shared/application/ports';
+import type {
+  EventPublisher,
+  OrderRepository,
+  StructuredLogger
+} from '../../shared/application/ports';
 import type { EventEnvelope } from '../../shared/domain/order';
 import type { OrderEventDetail } from '../../shared/domain/events';
 
@@ -20,10 +24,24 @@ export class ProcessShippingUseCase {
     for (const record of event.Records) {
       const message = JSON.parse(record.body) as ShippingMessage;
       await this.repository.updateStatus(message.orderId, 'SHIPPING');
-      await this.eventPublisher.publish(this.buildEvent('ShippingStarted', message.orderId, message.correlationId, 'SHIPPING'));
+      await this.eventPublisher.publish(
+        this.buildEvent(
+          'ShippingStarted',
+          message.orderId,
+          message.correlationId,
+          'SHIPPING'
+        )
+      );
 
       await this.repository.updateStatus(message.orderId, 'DELIVERED');
-      await this.eventPublisher.publish(this.buildEvent('ShippingCompleted', message.orderId, message.correlationId, 'DELIVERED'));
+      await this.eventPublisher.publish(
+        this.buildEvent(
+          'ShippingCompleted',
+          message.orderId,
+          message.correlationId,
+          'DELIVERED'
+        )
+      );
 
       this.logger.info('Order prepared for shipment.', {
         orderId: message.orderId,

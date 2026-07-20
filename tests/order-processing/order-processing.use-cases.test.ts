@@ -31,8 +31,17 @@ describe('Order processing use cases', () => {
   it('marks order as out of stock when quantity exceeds threshold', async () => {
     const repository = new InMemoryOrderRepository();
     const eventPublisher = new FakeEventPublisher();
-    const useCase = new CheckInventoryUseCase(repository, eventPublisher, enabledFlags, new FakeLogger());
-    await seedOrder(repository, { id: 'order-1', customerId: 'customer-1', quantity: 6 });
+    const useCase = new CheckInventoryUseCase(
+      repository,
+      eventPublisher,
+      enabledFlags,
+      new FakeLogger()
+    );
+    await seedOrder(repository, {
+      id: 'order-1',
+      customerId: 'customer-1',
+      quantity: 6
+    });
 
     const result = await useCase.execute('order-1', 'corr-1');
     const order = await repository.findById('order-1');
@@ -45,8 +54,16 @@ describe('Order processing use cases', () => {
   it('marks payment as failed for disallowed customers', async () => {
     const repository = new InMemoryOrderRepository();
     const eventPublisher = new FakeEventPublisher();
-    const useCase = new ProcessPaymentUseCase(repository, eventPublisher, new FakeLogger());
-    await seedOrder(repository, { id: 'order-2', customerId: 'fail-payment-customer', quantity: 1 });
+    const useCase = new ProcessPaymentUseCase(
+      repository,
+      eventPublisher,
+      new FakeLogger()
+    );
+    await seedOrder(repository, {
+      id: 'order-2',
+      customerId: 'fail-payment-customer',
+      quantity: 1
+    });
 
     const result = await useCase.execute('order-2', 'corr-2');
     const order = await repository.findById('order-2');
@@ -59,8 +76,17 @@ describe('Order processing use cases', () => {
   it('rejects fraudulent customers and approves clean orders', async () => {
     const repository = new InMemoryOrderRepository();
     const eventPublisher = new FakeEventPublisher();
-    const useCase = new CheckFraudUseCase(repository, eventPublisher, enabledFlags, new FakeLogger());
-    await seedOrder(repository, { id: 'order-3', customerId: 'fraudulent-customer', quantity: 1 });
+    const useCase = new CheckFraudUseCase(
+      repository,
+      eventPublisher,
+      enabledFlags,
+      new FakeLogger()
+    );
+    await seedOrder(repository, {
+      id: 'order-3',
+      customerId: 'fraudulent-customer',
+      quantity: 1
+    });
 
     const rejectedResult = await useCase.execute('order-3', 'corr-3');
     const rejectedOrder = await repository.findById('order-3');
@@ -69,7 +95,11 @@ describe('Order processing use cases', () => {
     expect(rejectedOrder?.status).toBe('FRAUD_DETECTED');
     expect(eventPublisher.events[0]?.detailType).toBe('FraudRejected');
 
-    await seedOrder(repository, { id: 'order-4', customerId: 'customer-4', quantity: 1 });
+    await seedOrder(repository, {
+      id: 'order-4',
+      customerId: 'customer-4',
+      quantity: 1
+    });
     const approvedResult = await useCase.execute('order-4', 'corr-4');
     const approvedOrder = await repository.findById('order-4');
 
@@ -81,8 +111,16 @@ describe('Order processing use cases', () => {
   it('moves approved orders through shipping to delivered', async () => {
     const repository = new InMemoryOrderRepository();
     const eventPublisher = new FakeEventPublisher();
-    const useCase = new ProcessShippingUseCase(repository, eventPublisher, new FakeLogger());
-    await seedOrder(repository, { id: 'order-5', customerId: 'customer-5', quantity: 1 });
+    const useCase = new ProcessShippingUseCase(
+      repository,
+      eventPublisher,
+      new FakeLogger()
+    );
+    await seedOrder(repository, {
+      id: 'order-5',
+      customerId: 'customer-5',
+      quantity: 1
+    });
 
     await useCase.execute({
       Records: [

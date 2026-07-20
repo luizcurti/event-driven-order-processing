@@ -16,7 +16,10 @@ export class SendNotificationUseCase {
     for (const record of event.Records) {
       const message = JSON.parse(record.body) as NotificationMessage;
 
-      this.logger.addContext({ correlationId: message.correlationId, orderId: message.orderId });
+      this.logger.addContext({
+        correlationId: message.correlationId,
+        orderId: message.orderId
+      });
       this.logger.info('Notification dispatched.', {
         channel: message.channel,
         reason: message.reason,

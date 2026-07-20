@@ -3,7 +3,12 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { EventBridgePublisher } from '../../src/shared/infrastructure/publishers/eventbridge-publisher';
 import { SqsQueuePublisher } from '../../src/shared/infrastructure/publishers/sqs-queue-publisher';
 import { DynamoDbOrderRepository } from '../../src/shared/infrastructure/repositories/dynamodb-order-repository';
-import { createEventPublisher, createLogger, createOrderRepository, createQueuePublisher } from '../../src/shared/infrastructure/factory';
+import {
+  createEventPublisher,
+  createLogger,
+  createOrderRepository,
+  createQueuePublisher
+} from '../../src/shared/infrastructure/factory';
 import { PowertoolsStructuredLogger } from '../../src/shared/infrastructure/logger';
 
 describe('infrastructure factory', () => {
@@ -26,7 +31,11 @@ describe('infrastructure factory', () => {
   });
 
   it('fails fast when required environment variables are missing', () => {
-    expect(() => createOrderRepository()).toThrow('ORDERS_TABLE_NAME environment variable is required.');
-    expect(() => createEventPublisher()).toThrow('EVENT_BUS_NAME environment variable is required.');
+    expect(() => createOrderRepository()).toThrow(
+      'ORDERS_TABLE_NAME environment variable is required.'
+    );
+    expect(() => createEventPublisher()).toThrow(
+      'EVENT_BUS_NAME environment variable is required.'
+    );
   });
 });

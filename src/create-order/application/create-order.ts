@@ -1,7 +1,11 @@
 import { randomUUID } from 'node:crypto';
 
 import type { CreateOrderPayload } from '../../shared/validation/order-schema';
-import type { EventPublisher, OrderRepository, StructuredLogger } from '../../shared/application/ports';
+import type {
+  EventPublisher,
+  OrderRepository,
+  StructuredLogger
+} from '../../shared/application/ports';
 import type { EventEnvelope, Order } from '../../shared/domain/order';
 import type { OrderEventDetail } from '../../shared/domain/events';
 
@@ -24,7 +28,9 @@ export class CreateOrderUseCase {
   ) {}
 
   async execute(request: CreateOrderRequest): Promise<CreateOrderResult> {
-    const existingOrder = await this.repository.findByIdempotencyKey(request.idempotencyKey);
+    const existingOrder = await this.repository.findByIdempotencyKey(
+      request.idempotencyKey
+    );
 
     if (existingOrder) {
       this.logger.info('Order reused from idempotency key.', {

@@ -76,12 +76,8 @@
         },
         "url": {
           "raw": "{{baseUrl}}/orders",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "orders"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["orders"]
         }
       }
     },
@@ -119,13 +115,8 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/orders/{{approvedOrderId}}",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "orders",
-            "{{approvedOrderId}}"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["orders", "{{approvedOrderId}}"]
         }
       }
     },
@@ -177,12 +168,8 @@
         },
         "url": {
           "raw": "{{baseUrl}}/orders",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "orders"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["orders"]
         }
       }
     },
@@ -219,13 +206,8 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/orders/{{stockOrderId}}",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "orders",
-            "{{stockOrderId}}"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["orders", "{{stockOrderId}}"]
         }
       }
     },
@@ -277,12 +259,8 @@
         },
         "url": {
           "raw": "{{baseUrl}}/orders",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "orders"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["orders"]
         }
       }
     },
@@ -319,13 +297,8 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/orders/{{paymentOrderId}}",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "orders",
-            "{{paymentOrderId}}"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["orders", "{{paymentOrderId}}"]
         }
       }
     },
@@ -377,12 +350,8 @@
         },
         "url": {
           "raw": "{{baseUrl}}/orders",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "orders"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["orders"]
         }
       }
     },
@@ -419,13 +388,8 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/orders/{{fraudOrderId}}",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "orders",
-            "{{fraudOrderId}}"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["orders", "{{fraudOrderId}}"]
         }
       }
     },
@@ -470,12 +434,8 @@
         },
         "url": {
           "raw": "{{baseUrl}}/orders",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "orders"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["orders"]
         }
       }
     },
@@ -526,12 +486,8 @@
         },
         "url": {
           "raw": "{{baseUrl}}/orders",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "orders"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["orders"]
         }
       }
     },
@@ -557,13 +513,8 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/orders/{{cancelOrderId}}",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "orders",
-            "{{cancelOrderId}}"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["orders", "{{cancelOrderId}}"]
         }
       }
     },
@@ -596,12 +547,8 @@
         "header": [],
         "url": {
           "raw": "{{baseUrl}}/orders",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "orders"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["orders"]
         }
       }
     }

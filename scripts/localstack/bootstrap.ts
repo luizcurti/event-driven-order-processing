@@ -1,5 +1,13 @@
-import { CreateTableCommand, DescribeTableCommand, DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { CreateEventBusCommand, DescribeEventBusCommand, EventBridgeClient } from '@aws-sdk/client-eventbridge';
+import {
+  CreateTableCommand,
+  DescribeTableCommand,
+  DynamoDBClient
+} from '@aws-sdk/client-dynamodb';
+import {
+  CreateEventBusCommand,
+  DescribeEventBusCommand,
+  EventBridgeClient
+} from '@aws-sdk/client-eventbridge';
 import {
   CreateQueueCommand,
   GetQueueAttributesCommand,
@@ -21,8 +29,11 @@ export interface LocalstackResources {
   deadLetterQueueUrl: string;
 }
 
-const localstackEndpoint = process.env.LOCAL_AWS_ENDPOINT ?? 'http://localhost:4567';
-const resourcePrefix = process.env.LOCALSTACK_RESOURCE_PREFIX ?? 'event-driven-order-processing-local';
+const localstackEndpoint =
+  process.env.LOCAL_AWS_ENDPOINT ?? 'http://localhost:4567';
+const resourcePrefix =
+  process.env.LOCALSTACK_RESOURCE_PREFIX ??
+  'event-driven-order-processing-local';
 
 const tableName = `${resourcePrefix}-orders`;
 const eventBusName = `${resourcePrefix}-bus`;
@@ -35,7 +46,8 @@ const enableLocalstackEnvironment = (): void => {
   process.env.LOCAL_AWS_ENDPOINT = localstackEndpoint;
   process.env.AWS_REGION = process.env.AWS_REGION ?? 'us-east-1';
   process.env.AWS_ACCESS_KEY_ID = process.env.AWS_ACCESS_KEY_ID ?? 'test';
-  process.env.AWS_SECRET_ACCESS_KEY = process.env.AWS_SECRET_ACCESS_KEY ?? 'test';
+  process.env.AWS_SECRET_ACCESS_KEY =
+    process.env.AWS_SECRET_ACCESS_KEY ?? 'test';
   process.env.ORDERS_TABLE_NAME = tableName;
   process.env.EVENT_BUS_NAME = eventBusName;
 };
@@ -110,9 +122,15 @@ const ensureEventBus = async (): Promise<void> => {
   }
 };
 
-const ensureQueue = async (client: SQSClient, queueName: string, redrivePolicy?: string): Promise<string> => {
+const ensureQueue = async (
+  client: SQSClient,
+  queueName: string,
+  redrivePolicy?: string
+): Promise<string> => {
   try {
-    const result = await client.send(new GetQueueUrlCommand({ QueueName: queueName }));
+    const result = await client.send(
+      new GetQueueUrlCommand({ QueueName: queueName })
+    );
     return result.QueueUrl ?? '';
   } catch {
     const result = await client.send(
@@ -126,7 +144,12 @@ const ensureQueue = async (client: SQSClient, queueName: string, redrivePolicy?:
   }
 };
 
-const ensureQueues = async (): Promise<Pick<LocalstackResources, 'shippingQueueUrl' | 'notificationQueueUrl' | 'deadLetterQueueUrl'>> => {
+const ensureQueues = async (): Promise<
+  Pick<
+    LocalstackResources,
+    'shippingQueueUrl' | 'notificationQueueUrl' | 'deadLetterQueueUrl'
+  >
+> => {
   const client = new SQSClient(createSqsClientConfig());
 
   const deadLetterQueueUrl = await ensureQueue(client, deadLetterQueueName);
@@ -148,8 +171,16 @@ const ensureQueues = async (): Promise<Pick<LocalstackResources, 'shippingQueueU
     maxReceiveCount: 3
   });
 
-  const shippingQueueUrl = await ensureQueue(client, shippingQueueName, redrivePolicy);
-  const notificationQueueUrl = await ensureQueue(client, notificationQueueName, redrivePolicy);
+  const shippingQueueUrl = await ensureQueue(
+    client,
+    shippingQueueName,
+    redrivePolicy
+  );
+  const notificationQueueUrl = await ensureQueue(
+    client,
+    notificationQueueName,
+    redrivePolicy
+  );
 
   await client.send(
     new SetQueueAttributesCommand({
@@ -176,18 +207,19 @@ const ensureQueues = async (): Promise<Pick<LocalstackResources, 'shippingQueueU
   };
 };
 
-export const ensureLocalstackResources = async (): Promise<LocalstackResources> => {
-  await waitForLocalstack();
-  await ensureOrdersTable();
-  await ensureEventBus();
-  const queues = await ensureQueues();
+export const ensureLocalstackResources =
+  async (): Promise<LocalstackResources> => {
+    await waitForLocalstack();
+    await ensureOrdersTable();
+    await ensureEventBus();
+    const queues = await ensureQueues();
 
-  return {
-    tableName,
-    eventBusName,
-    ...queues
+    return {
+      tableName,
+      eventBusName,
+      ...queues
+    };
   };
-};
 
 const main = async (): Promise<void> => {
   const resources = await ensureLocalstackResources();
