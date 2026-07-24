@@ -151,6 +151,7 @@ Dedicated shell entry points are also available:
 - `./scripts/local-up.sh`: starts Docker/LocalStack and bootstraps local AWS resources
 - `./scripts/local-ready.sh`: starts LocalStack/bootstrap and launches the local HTTP API
 - `./scripts/terraform-check.sh`: runs the Terraform validation workflow for `dev` and `prod`
+- `./scripts/local-down.sh`: stops LocalStack and removes volumes (tears down the local environment)
 
 Recommended first run:
 
@@ -189,6 +190,7 @@ npm run lint
 npm test
 npm run test:e2e
 terraform fmt -check -recursive terraform
+./scripts/local-down.sh
 ```
 
 ## Terraform deployment
