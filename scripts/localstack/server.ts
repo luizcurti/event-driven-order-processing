@@ -12,15 +12,20 @@ import { CreateOrderUseCase } from '../../src/create-order/application/create-or
 import { CheckFraudUseCase } from '../../src/fraud/application/check-fraud';
 import { CheckInventoryUseCase } from '../../src/inventory/application/check-inventory';
 import { SendNotificationUseCase } from '../../src/notification/application/send-notification';
-import { CancelOrderUseCase } from '../../src/orders/application/cancel-order';
-import { GetOrderUseCase } from '../../src/orders/application/get-order';
-import { ListOrdersUseCase } from '../../src/orders/application/list-orders';
+import {
+  CancelOrderUseCase,
+  GetOrderUseCase,
+  ListOrdersUseCase
+} from '../../src/orders/application/order-queries';
 import { ProcessPaymentUseCase } from '../../src/payment/application/process-payment';
-import type { EventEnvelope } from '../../src/shared/domain/order';
-import type { OrderEventDetail } from '../../src/shared/domain/events';
+import type {
+  EventEnvelope,
+  OrderEventDetail
+} from '../../src/shared/domain/order';
 import { ValidationError } from '../../src/shared/errors/app-errors';
 import {
   createEventPublisher,
+  createFeatureFlags,
   createLogger,
   createOrderRepository
 } from '../../src/shared/infrastructure/factory';
@@ -108,7 +113,7 @@ export const startLocalServer = async (
   const inventoryUseCase = new CheckInventoryUseCase(
     repository,
     eventPublisher,
-    { inventoryCheckEnabled: true, fraudCheckEnabled: true },
+    createFeatureFlags(),
     logger
   );
   const paymentUseCase = new ProcessPaymentUseCase(
@@ -119,7 +124,7 @@ export const startLocalServer = async (
   const fraudUseCase = new CheckFraudUseCase(
     repository,
     eventPublisher,
-    { inventoryCheckEnabled: true, fraudCheckEnabled: true },
+    createFeatureFlags(),
     logger
   );
   const shippingUseCase = new ProcessShippingUseCase(

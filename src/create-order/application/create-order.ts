@@ -6,8 +6,11 @@ import type {
   OrderRepository,
   StructuredLogger
 } from '../../shared/application/ports';
-import type { EventEnvelope, Order } from '../../shared/domain/order';
-import type { OrderEventDetail } from '../../shared/domain/events';
+import type {
+  EventEnvelope,
+  Order,
+  OrderEventDetail
+} from '../../shared/domain/order';
 
 export interface CreateOrderRequest extends CreateOrderPayload {
   correlationId: string;

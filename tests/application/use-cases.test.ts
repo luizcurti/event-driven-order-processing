@@ -3,9 +3,11 @@ import { describe, expect, it } from 'vitest';
 import { CheckFraudUseCase } from '../../src/fraud/application/check-fraud';
 import { CheckInventoryUseCase } from '../../src/inventory/application/check-inventory';
 import { SendNotificationUseCase } from '../../src/notification/application/send-notification';
-import { CancelOrderUseCase } from '../../src/orders/application/cancel-order';
-import { GetOrderUseCase } from '../../src/orders/application/get-order';
-import { ListOrdersUseCase } from '../../src/orders/application/list-orders';
+import {
+  CancelOrderUseCase,
+  GetOrderUseCase,
+  ListOrdersUseCase
+} from '../../src/orders/application/order-queries';
 import { ProcessPaymentUseCase } from '../../src/payment/application/process-payment';
 import { InMemoryOrderRepository } from '../../src/shared/infrastructure/repositories/in-memory-order-repository';
 import { ProcessShippingUseCase } from '../../src/shipping/application/process-shipping';

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type * as FactoryModule from '../../src/shared/infrastructure/factory';
 import { InMemoryOrderRepository } from '../../src/shared/infrastructure/repositories/in-memory-order-repository';
 import { FakeEventPublisher, FakeLogger } from '../support/fakes';
 
@@ -34,11 +35,19 @@ describe('async handlers', () => {
     await seedOrder(repository, 'payment-order');
     await seedOrder(repository, 'fraud-order', 'fraud-customer');
 
-    vi.doMock('../../src/shared/infrastructure/factory', () => ({
-      createLogger: () => logger,
-      createOrderRepository: () => repository,
-      createEventPublisher: () => eventPublisher
-    }));
+    vi.doMock(
+      '../../src/shared/infrastructure/factory',
+      async (importOriginal) => {
+        const actual = await importOriginal<typeof FactoryModule>();
+
+        return {
+          ...actual,
+          createLogger: () => logger,
+          createOrderRepository: () => repository,
+          createEventPublisher: () => eventPublisher
+        };
+      }
+    );
 
     const inventoryModule = await import('../../src/inventory/handler/index');
     const paymentModule = await import('../../src/payment/handler/index');
@@ -74,11 +83,19 @@ describe('async handlers', () => {
     await seedOrder(repository, 'shipping-order');
     await seedOrder(repository, 'update-order');
 
-    vi.doMock('../../src/shared/infrastructure/factory', () => ({
-      createLogger: () => logger,
-      createOrderRepository: () => repository,
-      createEventPublisher: () => eventPublisher
-    }));
+    vi.doMock(
+      '../../src/shared/infrastructure/factory',
+      async (importOriginal) => {
+        const actual = await importOriginal<typeof FactoryModule>();
+
+        return {
+          ...actual,
+          createLogger: () => logger,
+          createOrderRepository: () => repository,
+          createEventPublisher: () => eventPublisher
+        };
+      }
+    );
 
     const shippingModule = await import('../../src/shipping/handler/index');
     const updateModule = await import('../../src/update-order/handler/index');

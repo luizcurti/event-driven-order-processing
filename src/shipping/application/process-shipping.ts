@@ -5,8 +5,10 @@ import type {
   OrderRepository,
   StructuredLogger
 } from '../../shared/application/ports';
-import type { EventEnvelope } from '../../shared/domain/order';
-import type { OrderEventDetail } from '../../shared/domain/events';
+import type {
+  EventEnvelope,
+  OrderEventDetail
+} from '../../shared/domain/order';
 
 interface ShippingMessage {
   orderId: string;

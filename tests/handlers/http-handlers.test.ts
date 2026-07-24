@@ -6,6 +6,7 @@ import type {
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type * as OrderQueriesModule from '../../src/orders/application/order-queries';
 import { InMemoryOrderRepository } from '../../src/shared/infrastructure/repositories/in-memory-order-repository';
 import { FakeEventPublisher, FakeLogger } from '../support/fakes';
 
@@ -205,15 +206,23 @@ describe('HTTP handlers', () => {
       createLogger: () => logger,
       createOrderRepository: vi.fn()
     }));
-    vi.doMock('../../src/orders/application/get-order', () => ({
-      GetOrderUseCase: class {
-        execute(): Promise<never> {
-          const rejectionReason = new Error('boom');
-          Object.setPrototypeOf(rejectionReason, null);
-          return Promise.reject(rejectionReason);
-        }
+    vi.doMock(
+      '../../src/orders/application/order-queries',
+      async (importOriginal) => {
+        const actual = await importOriginal<typeof OrderQueriesModule>();
+
+        return {
+          ...actual,
+          GetOrderUseCase: class {
+            execute(): Promise<never> {
+              const rejectionReason = new Error('boom');
+              Object.setPrototypeOf(rejectionReason, null);
+              return Promise.reject(rejectionReason);
+            }
+          }
+        };
       }
-    }));
+    );
 
     const { handler } = await import('../../src/orders/handler/get-order');
     const event = baseEvent({
@@ -280,15 +289,23 @@ describe('HTTP handlers', () => {
       createLogger: () => logger,
       createOrderRepository: vi.fn()
     }));
-    vi.doMock('../../src/orders/application/list-orders', () => ({
-      ListOrdersUseCase: class {
-        execute(): Promise<never> {
-          const rejectionReason = new Error('boom');
-          Object.setPrototypeOf(rejectionReason, null);
-          return Promise.reject(rejectionReason);
-        }
+    vi.doMock(
+      '../../src/orders/application/order-queries',
+      async (importOriginal) => {
+        const actual = await importOriginal<typeof OrderQueriesModule>();
+
+        return {
+          ...actual,
+          ListOrdersUseCase: class {
+            execute(): Promise<never> {
+              const rejectionReason = new Error('boom');
+              Object.setPrototypeOf(rejectionReason, null);
+              return Promise.reject(rejectionReason);
+            }
+          }
+        };
       }
-    }));
+    );
 
     const { handler } = await import('../../src/orders/handler/list-orders');
     const event = baseEvent({
@@ -348,15 +365,23 @@ describe('HTTP handlers', () => {
       createLogger: () => logger,
       createOrderRepository: vi.fn()
     }));
-    vi.doMock('../../src/orders/application/cancel-order', () => ({
-      CancelOrderUseCase: class {
-        execute(): Promise<never> {
-          const rejectionReason = new Error('boom');
-          Object.setPrototypeOf(rejectionReason, null);
-          return Promise.reject(rejectionReason);
-        }
+    vi.doMock(
+      '../../src/orders/application/order-queries',
+      async (importOriginal) => {
+        const actual = await importOriginal<typeof OrderQueriesModule>();
+
+        return {
+          ...actual,
+          CancelOrderUseCase: class {
+            execute(): Promise<never> {
+              const rejectionReason = new Error('boom');
+              Object.setPrototypeOf(rejectionReason, null);
+              return Promise.reject(rejectionReason);
+            }
+          }
+        };
       }
-    }));
+    );
 
     const { handler } = await import('../../src/orders/handler/cancel-order');
     const event = baseEvent({

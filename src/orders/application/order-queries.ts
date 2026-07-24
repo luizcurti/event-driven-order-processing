@@ -16,3 +16,19 @@ export class GetOrderUseCase {
     return order;
   }
 }
+
+export class ListOrdersUseCase {
+  constructor(private readonly repository: OrderRepository) {}
+
+  async execute(): Promise<Order[]> {
+    return this.repository.list();
+  }
+}
+
+export class CancelOrderUseCase {
+  constructor(private readonly repository: OrderRepository) {}
+
+  async execute(orderId: string): Promise<Order> {
+    return this.repository.updateStatus(orderId, 'CANCELLED');
+  }
+}
