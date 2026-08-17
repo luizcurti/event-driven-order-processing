@@ -9,6 +9,8 @@ import type {
   OrderEventDetail
 } from '../../shared/domain/order';
 
+import { FraudException } from '../../shared/errors/app-errors';
+
 export interface FraudResult {
   orderId: string;
   fraudStatus: 'APPROVED' | 'REJECTED';
@@ -27,7 +29,9 @@ export class CheckFraudUseCase {
     const order = await this.repository.findById(orderId);
 
     if (!order) {
-      throw new Error(`Order ${orderId} was not found for fraud analysis.`);
+      throw new FraudException(
+        `Order ${orderId} was not found for fraud analysis.`
+      );
     }
 
     const fraudStatus =

@@ -38,3 +38,15 @@ export class OrderNotFoundException extends AppError {
     super(`Order ${orderId} was not found.`, 404, 'ORDER_NOT_FOUND');
   }
 }
+
+/**
+ * Internal-only signal thrown by repositories when a create() call loses a
+ * concurrency race on the idempotency key. Callers should treat it as a
+ * cue to re-read and return the winning order, not as an HTTP error.
+ */
+export class DuplicateIdempotencyKeyException extends Error {
+  constructor(public readonly idempotencyKey: string) {
+    super(`Order with idempotency key ${idempotencyKey} already exists.`);
+    this.name = new.target.name;
+  }
+}

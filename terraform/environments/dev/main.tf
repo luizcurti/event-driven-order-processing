@@ -63,7 +63,79 @@ module "eventbridge" {
   source   = "../../modules/eventbridge"
   bus_name = "${local.name_prefix}-bus"
   tags     = local.tags
-  rules    = {}
+
+  # Rules reference the state machine and the EventBridge-to-StepFunctions
+  # role declared further down in this file. Terraform resolves this by
+  # dependency graph, not file order, and the bus itself (created inside
+  # this same module) has no dependency on those resources, so there is no
+  # cycle. Keeping bus creation and rule attachment in a single module call
+  # avoids a chicken-and-egg problem: a second module instance targeting
+  # this bus with create_bus=false would need a data source lookup that
+  # fails on a from-scratch apply because the bus doesn't exist yet.
+  rules = {
+    order-created = {
+      description   = "Start the Step Functions workflow when an order is created."
+      event_pattern = jsonencode({ source = ["order.processing"], "detail-type" = ["OrderCreated"] })
+      target_arn    = module.order_processing_state_machine.arn
+      target_id     = "start-order-processing"
+      role_arn      = aws_iam_role.eventbridge_start_execution.arn
+    }
+    inventory-failed = {
+      description   = "Route inventory failures to the notification queue."
+      event_pattern = jsonencode({ source = ["order.processing"], "detail-type" = ["InventoryFailed"] })
+      target_arn    = module.sqs.notification_queue_arn
+      target_id     = "inventory-failed-notification"
+      input_transformer = {
+        input_paths = {
+          orderId       = "$.detail.detail.orderId"
+          correlationId = "$.detail.correlationId"
+          reason        = "$.detail.detail.reason"
+        }
+        input_template = "{\"orderId\": <orderId>, \"correlationId\": <correlationId>, \"reason\": <reason>}"
+      }
+    }
+    payment-failed = {
+      description   = "Route payment failures to the notification queue."
+      event_pattern = jsonencode({ source = ["order.processing"], "detail-type" = ["PaymentFailed"] })
+      target_arn    = module.sqs.notification_queue_arn
+      target_id     = "payment-failed-notification"
+      input_transformer = {
+        input_paths = {
+          orderId       = "$.detail.detail.orderId"
+          correlationId = "$.detail.correlationId"
+          reason        = "$.detail.detail.reason"
+        }
+        input_template = "{\"orderId\": <orderId>, \"correlationId\": <correlationId>, \"reason\": <reason>}"
+      }
+    }
+    fraud-rejected = {
+      description   = "Route fraud rejections to the notification queue."
+      event_pattern = jsonencode({ source = ["order.processing"], "detail-type" = ["FraudRejected"] })
+      target_arn    = module.sqs.notification_queue_arn
+      target_id     = "fraud-rejected-notification"
+      input_transformer = {
+        input_paths = {
+          orderId       = "$.detail.detail.orderId"
+          correlationId = "$.detail.correlationId"
+          reason        = "$.detail.detail.reason"
+        }
+        input_template = "{\"orderId\": <orderId>, \"correlationId\": <correlationId>, \"reason\": <reason>}"
+      }
+    }
+    order-approved = {
+      description   = "Route approved orders to the shipping queue."
+      event_pattern = jsonencode({ source = ["order.processing"], "detail-type" = ["OrderApproved"] })
+      target_arn    = module.sqs.shipping_queue_arn
+      target_id     = "shipping-order"
+      input_transformer = {
+        input_paths = {
+          orderId       = "$.detail.detail.orderId"
+          correlationId = "$.detail.correlationId"
+        }
+        input_template = "{\"orderId\": <orderId>, \"correlationId\": <correlationId>}"
+      }
+    }
+  }
 }
 
 module "dynamodb" {
@@ -161,46 +233,6 @@ resource "aws_iam_role_policy_attachment" "eventbridge_start_execution" {
   policy_arn = aws_iam_policy.eventbridge_start_execution.arn
 }
 
-module "eventbridge_routes" {
-  source     = "../../modules/eventbridge"
-  bus_name   = module.eventbridge.bus_name
-  create_bus = false
-  tags       = local.tags
-  rules = {
-    order-created = {
-      description   = "Start the Step Functions workflow when an order is created."
-      event_pattern = jsonencode({ source = ["order.processing"], "detail-type" = ["OrderCreated"] })
-      target_arn    = module.order_processing_state_machine.arn
-      target_id     = "start-order-processing"
-      role_arn      = aws_iam_role.eventbridge_start_execution.arn
-    }
-    inventory-failed = {
-      description   = "Route inventory failures to the notification queue."
-      event_pattern = jsonencode({ source = ["order.processing"], "detail-type" = ["InventoryFailed"] })
-      target_arn    = module.sqs.notification_queue_arn
-      target_id     = "inventory-failed-notification"
-    }
-    payment-failed = {
-      description   = "Route payment failures to the notification queue."
-      event_pattern = jsonencode({ source = ["order.processing"], "detail-type" = ["PaymentFailed"] })
-      target_arn    = module.sqs.notification_queue_arn
-      target_id     = "payment-failed-notification"
-    }
-    fraud-rejected = {
-      description   = "Route fraud rejections to the notification queue."
-      event_pattern = jsonencode({ source = ["order.processing"], "detail-type" = ["FraudRejected"] })
-      target_arn    = module.sqs.notification_queue_arn
-      target_id     = "fraud-rejected-notification"
-    }
-    order-approved = {
-      description   = "Route approved orders to the shipping queue."
-      event_pattern = jsonencode({ source = ["order.processing"], "detail-type" = ["OrderApproved"] })
-      target_arn    = module.sqs.shipping_queue_arn
-      target_id     = "shipping-order"
-    }
-  }
-}
-
 data "aws_iam_policy_document" "shipping_queue_policy" {
   statement {
     sid       = "AllowEventBridgeShipping"
@@ -215,7 +247,7 @@ data "aws_iam_policy_document" "shipping_queue_policy" {
     condition {
       test     = "ArnEquals"
       variable = "aws:SourceArn"
-      values   = [module.eventbridge_routes.rule_arns["order-approved"]]
+      values   = [module.eventbridge.rule_arns["order-approved"]]
     }
   }
 }
@@ -240,9 +272,9 @@ data "aws_iam_policy_document" "notification_queue_policy" {
       test     = "ArnEquals"
       variable = "aws:SourceArn"
       values = [
-        module.eventbridge_routes.rule_arns["inventory-failed"],
-        module.eventbridge_routes.rule_arns["payment-failed"],
-        module.eventbridge_routes.rule_arns["fraud-rejected"]
+        module.eventbridge.rule_arns["inventory-failed"],
+        module.eventbridge.rule_arns["payment-failed"],
+        module.eventbridge.rule_arns["fraud-rejected"]
       ]
     }
   }

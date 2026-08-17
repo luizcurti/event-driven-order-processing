@@ -5,9 +5,11 @@ import type { StructuredLogger } from '../../shared/application/ports';
 interface NotificationMessage {
   orderId: string;
   correlationId: string;
-  channel: 'email' | 'sms' | 'push';
-  reason: string;
+  channel?: 'email' | 'sms' | 'push';
+  reason?: string;
 }
+
+const DEFAULT_CHANNEL = 'email';
 
 export class SendNotificationUseCase {
   constructor(private readonly logger: StructuredLogger) {}
@@ -21,8 +23,8 @@ export class SendNotificationUseCase {
         orderId: message.orderId
       });
       this.logger.info('Notification dispatched.', {
-        channel: message.channel,
-        reason: message.reason,
+        channel: message.channel ?? DEFAULT_CHANNEL,
+        reason: message.reason ?? 'Order status changed.',
         status: 'SENT'
       });
     }

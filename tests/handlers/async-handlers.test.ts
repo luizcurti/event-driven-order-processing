@@ -130,30 +130,42 @@ describe('async handlers', () => {
       vi.fn()
     );
 
+    const buildNotificationRecord = (
+      messageId: string,
+      body: Record<string, unknown>
+    ) => ({
+      messageId,
+      receiptHandle: 'receipt',
+      body: JSON.stringify(body),
+      attributes: {
+        ApproximateReceiveCount: '1',
+        SentTimestamp: '1',
+        SenderId: 'local',
+        ApproximateFirstReceiveTimestamp: '1'
+      },
+      messageAttributes: {},
+      md5OfBody: 'hash',
+      eventSource: 'aws:sqs',
+      eventSourceARN: 'arn:aws:sqs:us-east-1:000000000000:notification',
+      awsRegion: 'us-east-1'
+    });
+
     await notificationModule.handler(
       {
         Records: [
-          {
-            messageId: 'message-2',
-            receiptHandle: 'receipt',
-            body: JSON.stringify({
-              orderId: 'shipping-order',
-              correlationId: 'corr-1',
-              channel: 'email',
-              reason: 'done'
-            }),
-            attributes: {
-              ApproximateReceiveCount: '1',
-              SentTimestamp: '1',
-              SenderId: 'local',
-              ApproximateFirstReceiveTimestamp: '1'
-            },
-            messageAttributes: {},
-            md5OfBody: 'hash',
-            eventSource: 'aws:sqs',
-            eventSourceARN: 'arn:aws:sqs:us-east-1:000000000000:notification',
-            awsRegion: 'us-east-1'
-          }
+          buildNotificationRecord('message-2', {
+            orderId: 'shipping-order',
+            correlationId: 'corr-1',
+            channel: 'email',
+            reason: 'done'
+          }),
+          // Real EventBridge -> SQS delivery for InventoryFailed/PaymentFailed/
+          // FraudRejected does not carry a channel, only orderId/correlationId
+          // and reason (see the input_transformer in terraform/modules/eventbridge).
+          buildNotificationRecord('message-3', {
+            orderId: 'shipping-order',
+            correlationId: 'corr-1'
+          })
         ]
       },
       {} as never,

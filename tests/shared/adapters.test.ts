@@ -6,8 +6,18 @@ import { InMemoryOrderRepository } from '../../src/shared/infrastructure/reposit
 
 const documentSendMock = vi.fn();
 
+class ConditionalCheckFailedException extends Error {
+  override name = 'ConditionalCheckFailedException';
+}
+
+class TransactionCanceledException extends Error {
+  override name = 'TransactionCanceledException';
+}
+
 vi.mock('@aws-sdk/client-dynamodb', () => ({
-  DynamoDBClient: class DynamoDBClient {}
+  DynamoDBClient: class DynamoDBClient {},
+  ConditionalCheckFailedException,
+  TransactionCanceledException
 }));
 
 vi.mock('@aws-sdk/lib-dynamodb', () => {
@@ -20,8 +30,8 @@ vi.mock('@aws-sdk/lib-dynamodb', () => {
       from: () => ({ send: documentSendMock })
     },
     GetCommand: BaseCommand,
-    PutCommand: BaseCommand,
     QueryCommand: BaseCommand,
+    TransactWriteCommand: BaseCommand,
     UpdateCommand: BaseCommand
   };
 });
@@ -101,6 +111,19 @@ describe('infrastructure adapters', () => {
         repository.updateStatus('missing', 'APPROVED')
       )
     ).rejects.toThrow('Order missing was not found.');
+
+    await expect(
+      repository.create({
+        id: 'order-3',
+        customerId: 'customer-3',
+        items: [{ productId: 'SKU-3', quantity: 1 }],
+        status: 'RECEIVED',
+        createdAt: '2026-01-03T00:00:00.000Z',
+        updatedAt: '2026-01-03T00:00:00.000Z',
+        correlationId: 'corr-3',
+        idempotencyKey: 'idem-1'
+      })
+    ).rejects.toThrow('idem-1 already exists');
   });
 
   it('persists and reads orders through the DynamoDB repository adapter', async () => {
@@ -202,10 +225,47 @@ describe('infrastructure adapters', () => {
       'order-1'
     ]);
 
-    documentSendMock.mockResolvedValueOnce({ Attributes: undefined });
+    documentSendMock.mockRejectedValueOnce(
+      new ConditionalCheckFailedException('The conditional request failed.')
+    );
     await expect(
       repository.updateStatus('missing', 'APPROVED')
     ).rejects.toThrow('Order missing was not found.');
+
+    documentSendMock.mockRejectedValueOnce(
+      new TransactionCanceledException('Transaction cancelled.')
+    );
+    await expect(
+      repository.create({
+        id: 'order-2',
+        customerId: 'customer-2',
+        items: [{ productId: 'SKU-2', quantity: 1 }],
+        status: 'RECEIVED',
+        createdAt: '2026-01-02T00:00:00.000Z',
+        updatedAt: '2026-01-02T00:00:00.000Z',
+        correlationId: 'corr-2',
+        idempotencyKey: 'idem-1'
+      })
+    ).rejects.toThrow('idem-1 already exists');
+
+    documentSendMock.mockRejectedValueOnce(new Error('network blip'));
+    await expect(
+      repository.updateStatus('order-1', 'APPROVED')
+    ).rejects.toThrow('network blip');
+
+    documentSendMock.mockRejectedValueOnce(new Error('network blip'));
+    await expect(
+      repository.create({
+        id: 'order-3',
+        customerId: 'customer-3',
+        items: [{ productId: 'SKU-3', quantity: 1 }],
+        status: 'RECEIVED',
+        createdAt: '2026-01-03T00:00:00.000Z',
+        updatedAt: '2026-01-03T00:00:00.000Z',
+        correlationId: 'corr-3',
+        idempotencyKey: 'idem-3'
+      })
+    ).rejects.toThrow('network blip');
 
     documentSendMock.mockResolvedValueOnce({
       Attributes: {

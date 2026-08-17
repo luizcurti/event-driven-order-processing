@@ -1,12 +1,25 @@
 import type { OrderRepository } from '../../application/ports';
 import type { Order, OrderStatus } from '../../domain/order';
 
-import { OrderNotFoundException } from '../../errors/app-errors';
+import {
+  DuplicateIdempotencyKeyException,
+  OrderNotFoundException
+} from '../../errors/app-errors';
 
 export class InMemoryOrderRepository implements OrderRepository {
   private readonly orders = new Map<string, Order>();
 
   create(order: Order): Promise<void> {
+    const duplicate = [...this.orders.values()].find(
+      (existing) => existing.idempotencyKey === order.idempotencyKey
+    );
+
+    if (duplicate) {
+      return Promise.reject(
+        new DuplicateIdempotencyKeyException(order.idempotencyKey)
+      );
+    }
+
     this.orders.set(order.id, { ...order, items: [...order.items] });
     return Promise.resolve();
   }

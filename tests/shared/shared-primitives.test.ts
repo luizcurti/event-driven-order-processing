@@ -21,7 +21,10 @@ import {
   getIdempotencyKey
 } from '../../src/shared/utils/correlation';
 import { errorResponse, jsonResponse } from '../../src/shared/utils/http';
-import { createOrderSchema } from '../../src/shared/validation/order-schema';
+import {
+  createOrderSchema,
+  parseCreateOrderPayload
+} from '../../src/shared/validation/order-schema';
 
 describe('shared primitives', () => {
   const envSnapshot = { ...process.env };
@@ -71,6 +74,28 @@ describe('shared primitives', () => {
         items: []
       })
     ).toThrow();
+  });
+
+  it('parses create order request bodies into ValidationError on failure', () => {
+    expect(
+      parseCreateOrderPayload(
+        JSON.stringify({
+          customerId: 'customer-1',
+          items: [{ productId: 'SKU-1', quantity: 2 }]
+        })
+      )
+    ).toEqual({
+      customerId: 'customer-1',
+      items: [{ productId: 'SKU-1', quantity: 2 }]
+    });
+
+    expect(() => parseCreateOrderPayload('{not-json')).toThrow(ValidationError);
+    expect(() =>
+      parseCreateOrderPayload(JSON.stringify({ items: [] }))
+    ).toThrow(/customerId/);
+    expect(() =>
+      parseCreateOrderPayload(JSON.stringify('not-an-object'))
+    ).toThrow(/^body:/);
   });
 
   it('reads correlation and idempotency headers and falls back to generated ids', () => {

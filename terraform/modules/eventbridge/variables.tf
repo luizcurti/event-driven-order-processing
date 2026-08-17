@@ -17,6 +17,10 @@ variable "rules" {
     target_arn    = string
     target_id     = string
     role_arn      = optional(string)
+    input_transformer = optional(object({
+      input_paths    = map(string)
+      input_template = string
+    }))
   }))
   default = {}
 }

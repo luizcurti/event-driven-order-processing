@@ -5,9 +5,15 @@ services:
     ports:
       - '4567:4566'
     environment:
-      SERVICES: dynamodb,events,sqs
-      DEBUG: '0'
-      AWS_DEFAULT_REGION: us-east-1
-      LOCALSTACK_HOST: localstack
+      - SERVICES= dynamodb,events,sqs,cloudwatch,logs,iam,kms,sts
+      - AWS_DEFAULT_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - DEBUG=0
+      - PERSISTENCE=1
+      - LOCALSTACK_HOST=localstack
     volumes:
+      - localstack-data:/var/lib/localstack
       - /var/run/docker.sock:/var/run/docker.sock
+volumes:
+  localstack-data:

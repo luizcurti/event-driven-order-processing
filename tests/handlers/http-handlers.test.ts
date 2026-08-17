@@ -49,6 +49,11 @@ const invokeHandler = async (
   return result as APIGatewayProxyStructuredResultV2;
 };
 
+const parseErrorBody = (
+  response: APIGatewayProxyStructuredResultV2
+): { error: string; message: string } =>
+  JSON.parse(response.body ?? '{}') as { error: string; message: string };
+
 const seedOrder = async (
   repository: InMemoryOrderRepository,
   orderId = 'order-1'
@@ -67,6 +72,13 @@ const seedOrder = async (
 
 describe('HTTP handlers', () => {
   afterEach(() => {
+    // vi.resetModules() alone does not clear vi.doMock() factory
+    // registrations, so a module mocked via importOriginal() in one test
+    // (e.g. the "unknown failures" tests below) would otherwise leak into
+    // later tests and hand them classes bound to a stale module realm,
+    // breaking `instanceof AppError` checks in unrelated tests.
+    vi.doUnmock('../../src/orders/application/order-queries');
+    vi.doUnmock('../../src/create-order/application/create-order');
     vi.resetModules();
     vi.clearAllMocks();
   });
@@ -109,11 +121,18 @@ describe('HTTP handlers', () => {
     delete (missingBodyEvent as { body?: string }).body;
     const missingBody = await invokeHandler(handler, missingBodyEvent);
     const invalidJson = await invokeHandler(handler, baseEvent({ body: '{' }));
+    const invalidSchema = await invokeHandler(
+      handler,
+      baseEvent({ body: JSON.stringify({ items: [] }) })
+    );
 
     expect(created.statusCode).toBe(202);
     expect(reused.statusCode).toBe(200);
     expect(missingBody.statusCode).toBe(400);
-    expect(invalidJson.statusCode).toBe(500);
+    expect(invalidJson.statusCode).toBe(400);
+    expect(parseErrorBody(invalidJson).error).toBe('VALIDATION_ERROR');
+    expect(invalidSchema.statusCode).toBe(400);
+    expect(parseErrorBody(invalidSchema).error).toBe('VALIDATION_ERROR');
     expect(logger.entries.some((entry) => entry.level === 'ERROR')).toBe(true);
   });
 
@@ -353,9 +372,47 @@ describe('HTTP handlers', () => {
         }
       })
     );
+    const notFound = await invokeHandler(
+      handler,
+      baseEvent({
+        pathParameters: { id: 'missing' },
+        requestContext: {
+          ...baseEvent().requestContext,
+          http: { ...baseEvent().requestContext.http, method: 'DELETE' }
+        }
+      })
+    );
+    const alreadyCancelled = await invokeHandler(
+      handler,
+      baseEvent({
+        pathParameters: { id: 'order-1' },
+        requestContext: {
+          ...baseEvent().requestContext,
+          http: { ...baseEvent().requestContext.http, method: 'DELETE' }
+        }
+      })
+    );
+
+    await repository.updateStatus('order-1', 'DELIVERED');
+    const alreadyDelivered = await invokeHandler(
+      handler,
+      baseEvent({
+        pathParameters: { id: 'order-1' },
+        requestContext: {
+          ...baseEvent().requestContext,
+          http: { ...baseEvent().requestContext.http, method: 'DELETE' }
+        }
+      })
+    );
 
     expect(success.statusCode).toBe(200);
     expect(missingId.statusCode).toBe(400);
+    expect(notFound.statusCode).toBe(404);
+    expect(alreadyCancelled.statusCode).toBe(200);
+    expect(
+      (JSON.parse(alreadyCancelled.body ?? '{}') as { status: string }).status
+    ).toBe('CANCELLED');
+    expect(alreadyDelivered.statusCode).toBe(400);
   });
 
   it('handles cancel-order unknown failures and falls back to unknown request ids', async () => {

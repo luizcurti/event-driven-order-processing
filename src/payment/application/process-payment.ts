@@ -8,6 +8,8 @@ import type {
   OrderEventDetail
 } from '../../shared/domain/order';
 
+import { PaymentException } from '../../shared/errors/app-errors';
+
 export interface PaymentResult {
   orderId: string;
   paymentStatus: 'APPROVED' | 'FAILED';
@@ -28,7 +30,9 @@ export class ProcessPaymentUseCase {
     const order = await this.repository.findById(orderId);
 
     if (!order) {
-      throw new Error(`Order ${orderId} was not found for payment processing.`);
+      throw new PaymentException(
+        `Order ${orderId} was not found for payment processing.`
+      );
     }
 
     const totalQuantity = order.items.reduce(

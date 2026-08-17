@@ -36,6 +36,9 @@ jobs:
 
   terraform:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -62,7 +65,20 @@ jobs:
         working-directory: terraform/environments/prod
         run: terraform validate
 
-      - name: Terraform plan dev
+      # No AWS account is wired to this project yet. This step only runs once
+      # an AWS_ROLE_ARN secret (an OIDC-assumable role, no long-lived keys)
+      # is configured in the repo/environment settings; until then it fails
+      # fast and is swallowed by continue-on-error so CI stays green.
+      - name: Configure AWS credentials
+        id: aws-creds
         if: github.event_name == 'pull_request'
+        continue-on-error: true
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Terraform plan dev
+        if: github.event_name == 'pull_request' && steps.aws-creds.outcome == 'success'
         working-directory: terraform/environments/dev
         run: terraform plan -input=false -lock=false

@@ -12,6 +12,8 @@ import type {
   OrderEventDetail
 } from '../../shared/domain/order';
 
+import { DuplicateIdempotencyKeyException } from '../../shared/errors/app-errors';
+
 export interface CreateOrderRequest extends CreateOrderPayload {
   correlationId: string;
   idempotencyKey: string;
@@ -36,17 +38,7 @@ export class CreateOrderUseCase {
     );
 
     if (existingOrder) {
-      this.logger.info('Order reused from idempotency key.', {
-        orderId: existingOrder.id,
-        correlationId: request.correlationId,
-        status: existingOrder.status
-      });
-
-      return {
-        orderId: existingOrder.id,
-        status: existingOrder.status,
-        reused: true
-      };
+      return this.reuseOrder(existingOrder, request.correlationId);
     }
 
     const timestamp = new Date().toISOString();
@@ -61,7 +53,21 @@ export class CreateOrderUseCase {
       idempotencyKey: request.idempotencyKey
     };
 
-    await this.repository.create(order);
+    try {
+      await this.repository.create(order);
+    } catch (error) {
+      if (error instanceof DuplicateIdempotencyKeyException) {
+        const raceWinner = await this.repository.findByIdempotencyKey(
+          request.idempotencyKey
+        );
+
+        if (raceWinner) {
+          return this.reuseOrder(raceWinner, request.correlationId);
+        }
+      }
+
+      throw error;
+    }
 
     const event: EventEnvelope<OrderEventDetail> = {
       source: 'order.processing',
@@ -89,6 +95,20 @@ export class CreateOrderUseCase {
       orderId: order.id,
       status: order.status,
       reused: false
+    };
+  }
+
+  private reuseOrder(order: Order, correlationId: string): CreateOrderResult {
+    this.logger.info('Order reused from idempotency key.', {
+      orderId: order.id,
+      correlationId,
+      status: order.status
+    });
+
+    return {
+      orderId: order.id,
+      status: order.status,
+      reused: true
     };
   }
 }

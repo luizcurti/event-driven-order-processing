@@ -33,7 +33,7 @@ import { createSqsClientConfig } from '../../src/shared/infrastructure/aws-clien
 import { createQueuePublisher } from '../../src/shared/infrastructure/factory';
 import { errorResponse, jsonResponse } from '../../src/shared/utils/http';
 import { ProcessShippingUseCase } from '../../src/shipping/application/process-shipping';
-import { createOrderSchema } from '../../src/shared/validation/order-schema';
+import { parseCreateOrderPayload } from '../../src/shared/validation/order-schema';
 import { ensureLocalstackResources } from './bootstrap';
 
 interface LocalServerHandle {
@@ -267,7 +267,7 @@ export const startLocalServer = async (
           throw new ValidationError('Request body is required.');
         }
 
-        const payload = createOrderSchema.parse(JSON.parse(rawBody));
+        const payload = parseCreateOrderPayload(rawBody);
         const correlationId =
           request.headers['x-correlation-id']?.toString().trim() ||
           crypto.randomUUID();

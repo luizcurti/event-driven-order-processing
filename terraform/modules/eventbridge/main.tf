@@ -29,4 +29,13 @@ resource "aws_cloudwatch_event_target" "this" {
   arn            = each.value.target_arn
   target_id      = each.value.target_id
   role_arn       = try(each.value.role_arn, null)
+
+  dynamic "input_transformer" {
+    for_each = each.value.input_transformer != null ? [each.value.input_transformer] : []
+
+    content {
+      input_paths    = input_transformer.value.input_paths
+      input_template = input_transformer.value.input_template
+    }
+  }
 }

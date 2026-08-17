@@ -9,7 +9,7 @@ import {
 import { ValidationError } from '../../shared/errors/app-errors';
 import { jsonResponse, withHttpHandler } from '../../shared/utils/http';
 import { getIdempotencyKey } from '../../shared/utils/correlation';
-import { createOrderSchema } from '../../shared/validation/order-schema';
+import { parseCreateOrderPayload } from '../../shared/validation/order-schema';
 
 const logger = createLogger('create-order');
 const useCase = new CreateOrderUseCase(
@@ -23,7 +23,7 @@ const parseBody = (event: APIGatewayProxyEventV2) => {
     throw new ValidationError('Request body is required.');
   }
 
-  return createOrderSchema.parse(JSON.parse(event.body));
+  return parseCreateOrderPayload(event.body);
 };
 
 export const handler = withHttpHandler(
