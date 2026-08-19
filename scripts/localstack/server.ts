@@ -435,7 +435,15 @@ export const startLocalServer = async (
 
         if (!result.reused) {
           ordersCreatedTotal.inc();
-          void processOrderWorkflow(result.orderId, correlationId);
+          processOrderWorkflow(result.orderId, correlationId).catch(
+            (error: unknown) => {
+              logger.error('Order workflow failed.', {
+                orderId: result.orderId,
+                correlationId,
+                error: error instanceof Error ? error.message : 'unknown'
+              });
+            }
+          );
         }
 
         sendResponse(

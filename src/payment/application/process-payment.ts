@@ -3,12 +3,15 @@ import type {
   OrderRepository,
   StructuredLogger
 } from '../../shared/application/ports';
-import type {
-  EventEnvelope,
-  OrderEventDetail
-} from '../../shared/domain/order';
 
-import { PaymentException } from '../../shared/errors/app-errors';
+import { buildEventEnvelope } from '../../shared/domain/event-envelope';
+import {
+  OrderAlreadyFinalizedException,
+  PaymentException
+} from '../../shared/errors/app-errors';
+
+const FAILING_PAYMENT_CUSTOMER_PREFIX = 'fail-payment';
+const MAX_TOTAL_QUANTITY = 10;
 
 export interface PaymentResult {
   orderId: string;
@@ -40,31 +43,44 @@ export class ProcessPaymentUseCase {
       0
     );
     const paymentStatus =
-      order.customerId.startsWith('fail-payment') || totalQuantity > 10
+      order.customerId.startsWith(FAILING_PAYMENT_CUSTOMER_PREFIX) ||
+      totalQuantity > MAX_TOTAL_QUANTITY
         ? 'FAILED'
         : 'APPROVED';
+    const orderStatus =
+      paymentStatus === 'APPROVED' ? 'PROCESSING' : 'PAYMENT_FAILED';
 
-    await this.repository.updateStatus(
-      orderId,
-      paymentStatus === 'APPROVED' ? 'PROCESSING' : 'PAYMENT_FAILED'
-    );
+    try {
+      await this.repository.updateStatus(orderId, orderStatus);
+    } catch (error) {
+      if (!(error instanceof OrderAlreadyFinalizedException)) {
+        throw error;
+      }
 
-    const event: EventEnvelope<OrderEventDetail> = {
-      source: 'order.processing',
-      detailType:
-        paymentStatus === 'APPROVED' ? 'PaymentApproved' : 'PaymentFailed',
-      version: 'v1',
+      this.logger.info(
+        'Order was already finalized; skipping payment update.',
+        {
+          orderId,
+          correlationId,
+          status: error.currentStatus
+        }
+      );
+
+      return { orderId, paymentStatus, correlationId };
+    }
+
+    const event = buildEventEnvelope(
+      paymentStatus === 'APPROVED' ? 'PaymentApproved' : 'PaymentFailed',
       correlationId,
-      timestamp: new Date().toISOString(),
-      detail: {
+      {
         orderId,
-        status: paymentStatus === 'APPROVED' ? 'PROCESSING' : 'PAYMENT_FAILED',
+        status: orderStatus,
         reason:
           paymentStatus === 'APPROVED'
             ? undefined
             : 'Payment gateway declined the transaction.'
       }
-    };
+    );
 
     await this.eventPublisher.publish(event);
     this.logger.info('Payment processing completed.', {

@@ -12,6 +12,7 @@ export const createOrderSchema = z.object({
       })
     )
     .min(1)
+    .max(50)
 });
 
 export type CreateOrderPayload = z.infer<typeof createOrderSchema>;

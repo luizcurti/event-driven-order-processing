@@ -1,3 +1,5 @@
+import type { OrderStatus } from '../domain/order';
+
 export class AppError extends Error {
   constructor(
     message: string,
@@ -47,6 +49,24 @@ export class OrderNotFoundException extends AppError {
 export class DuplicateIdempotencyKeyException extends Error {
   constructor(public readonly idempotencyKey: string) {
     super(`Order with idempotency key ${idempotencyKey} already exists.`);
+    this.name = new.target.name;
+  }
+}
+
+/**
+ * Internal-only signal thrown by repositories when a status transition is
+ * attempted on an order that already reached a finalized status (cancelled
+ * or delivered). Callers should treat it as an expected race between the
+ * cancellation and the in-flight workflow, not a system error.
+ */
+export class OrderAlreadyFinalizedException extends Error {
+  constructor(
+    public readonly orderId: string,
+    public readonly currentStatus: OrderStatus
+  ) {
+    super(
+      `Order ${orderId} is already ${currentStatus} and cannot be updated further.`
+    );
     this.name = new.target.name;
   }
 }

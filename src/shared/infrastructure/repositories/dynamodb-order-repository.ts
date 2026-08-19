@@ -14,8 +14,10 @@ import {
 import type { OrderRepository } from '../../application/ports';
 import type { Order, OrderStatus } from '../../domain/order';
 
+import { finalizedOrderStatuses, isOrderFinalized } from '../../domain/order';
 import {
   DuplicateIdempotencyKeyException,
+  OrderAlreadyFinalizedException,
   OrderNotFoundException
 } from '../../errors/app-errors';
 import { createDynamoDbClientConfig } from '../aws-client-config';
@@ -24,6 +26,14 @@ interface OrderRecord extends Order {
   pk: string;
   sk: string;
 }
+
+const FINALIZED_STATUS_PLACEHOLDERS = finalizedOrderStatuses
+  .map((_, index) => `:finalized${index}`)
+  .join(', ');
+
+const FINALIZED_STATUS_VALUES = Object.fromEntries(
+  finalizedOrderStatuses.map((value, index) => [`:finalized${index}`, value])
+);
 
 export class DynamoDbOrderRepository implements OrderRepository {
   private readonly client: DynamoDBDocumentClient;
@@ -125,6 +135,14 @@ export class DynamoDbOrderRepository implements OrderRepository {
       .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
   }
 
+  /**
+   * Conditions the write on the order not already being in a finalized
+   * status (cancelled or delivered), so a workflow step that races behind a
+   * cancellation (or vice versa) loses instead of silently clobbering it.
+   * A failed condition can mean either "not found" or "already finalized";
+   * that's only disambiguated with a follow-up read on the rare failure
+   * path, so the common case pays no extra cost.
+   */
   async updateStatus(orderId: string, status: OrderStatus): Promise<Order> {
     try {
       const result = await this.client.send(
@@ -135,13 +153,14 @@ export class DynamoDbOrderRepository implements OrderRepository {
             sk: 'ORDER'
           },
           UpdateExpression: 'SET #status = :status, updatedAt = :updatedAt',
-          ConditionExpression: 'attribute_exists(pk)',
+          ConditionExpression: `attribute_exists(pk) AND NOT (#status IN (${FINALIZED_STATUS_PLACEHOLDERS}))`,
           ExpressionAttributeNames: {
             '#status': 'status'
           },
           ExpressionAttributeValues: {
             ':status': status,
-            ':updatedAt': new Date().toISOString()
+            ':updatedAt': new Date().toISOString(),
+            ...FINALIZED_STATUS_VALUES
           },
           ReturnValues: 'ALL_NEW'
         })
@@ -150,6 +169,12 @@ export class DynamoDbOrderRepository implements OrderRepository {
       return this.fromRecord(result.Attributes as OrderRecord);
     } catch (error) {
       if (error instanceof ConditionalCheckFailedException) {
+        const current = await this.findById(orderId);
+
+        if (current && isOrderFinalized(current.status)) {
+          throw new OrderAlreadyFinalizedException(orderId, current.status);
+        }
+
         throw new OrderNotFoundException(orderId);
       }
 

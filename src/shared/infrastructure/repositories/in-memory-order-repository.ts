@@ -1,8 +1,10 @@
 import type { OrderRepository } from '../../application/ports';
 import type { Order, OrderStatus } from '../../domain/order';
 
+import { isOrderFinalized } from '../../domain/order';
 import {
   DuplicateIdempotencyKeyException,
+  OrderAlreadyFinalizedException,
   OrderNotFoundException
 } from '../../errors/app-errors';
 
@@ -49,6 +51,10 @@ export class InMemoryOrderRepository implements OrderRepository {
 
     if (!order) {
       throw new OrderNotFoundException(orderId);
+    }
+
+    if (isOrderFinalized(order.status)) {
+      throw new OrderAlreadyFinalizedException(orderId, order.status);
     }
 
     const updatedOrder: Order = {

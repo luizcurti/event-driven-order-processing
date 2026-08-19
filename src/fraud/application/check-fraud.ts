@@ -4,12 +4,14 @@ import type {
   OrderRepository,
   StructuredLogger
 } from '../../shared/application/ports';
-import type {
-  EventEnvelope,
-  OrderEventDetail
-} from '../../shared/domain/order';
 
-import { FraudException } from '../../shared/errors/app-errors';
+import { buildEventEnvelope } from '../../shared/domain/event-envelope';
+import {
+  FraudException,
+  OrderAlreadyFinalizedException
+} from '../../shared/errors/app-errors';
+
+const FRAUD_KEYWORD = 'fraud';
 
 export interface FraudResult {
   orderId: string;
@@ -36,31 +38,40 @@ export class CheckFraudUseCase {
 
     const fraudStatus =
       this.featureFlags.fraudCheckEnabled &&
-      order.customerId.toLowerCase().includes('fraud')
+      order.customerId.toLowerCase().includes(FRAUD_KEYWORD)
         ? 'REJECTED'
         : 'APPROVED';
+    const orderStatus =
+      fraudStatus === 'APPROVED' ? 'APPROVED' : 'FRAUD_DETECTED';
 
-    await this.repository.updateStatus(
-      orderId,
-      fraudStatus === 'APPROVED' ? 'APPROVED' : 'FRAUD_DETECTED'
-    );
+    try {
+      await this.repository.updateStatus(orderId, orderStatus);
+    } catch (error) {
+      if (!(error instanceof OrderAlreadyFinalizedException)) {
+        throw error;
+      }
 
-    const event: EventEnvelope<OrderEventDetail> = {
-      source: 'order.processing',
-      detailType:
-        fraudStatus === 'APPROVED' ? 'FraudApproved' : 'FraudRejected',
-      version: 'v1',
-      correlationId,
-      timestamp: new Date().toISOString(),
-      detail: {
+      this.logger.info('Order was already finalized; skipping fraud update.', {
         orderId,
-        status: fraudStatus === 'APPROVED' ? 'APPROVED' : 'FRAUD_DETECTED',
+        correlationId,
+        status: error.currentStatus
+      });
+
+      return { orderId, fraudStatus, correlationId };
+    }
+
+    const event = buildEventEnvelope(
+      fraudStatus === 'APPROVED' ? 'FraudApproved' : 'FraudRejected',
+      correlationId,
+      {
+        orderId,
+        status: orderStatus,
         reason:
           fraudStatus === 'APPROVED'
             ? undefined
             : 'Fraud score exceeded the configured threshold.'
       }
-    };
+    );
 
     await this.eventPublisher.publish(event);
     this.logger.info('Fraud analysis completed.', {

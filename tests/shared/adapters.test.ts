@@ -126,6 +126,30 @@ describe('infrastructure adapters', () => {
     ).rejects.toThrow('idem-1 already exists');
   });
 
+  it('rejects updateStatus once an in-memory order is finalized', async () => {
+    const repository = new InMemoryOrderRepository();
+    await repository.create({
+      id: 'order-final',
+      customerId: 'customer-1',
+      items: [{ productId: 'SKU-1', quantity: 1 }],
+      status: 'RECEIVED',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      correlationId: 'corr-1',
+      idempotencyKey: 'idem-final'
+    });
+
+    await repository.updateStatus('order-final', 'CANCELLED');
+
+    await expect(
+      Promise.resolve().then(() =>
+        repository.updateStatus('order-final', 'DELIVERED')
+      )
+    ).rejects.toThrow(
+      'Order order-final is already CANCELLED and cannot be updated further.'
+    );
+  });
+
   it('persists and reads orders through the DynamoDB repository adapter', async () => {
     const { DynamoDbOrderRepository } =
       await import('../../src/shared/infrastructure/repositories/dynamodb-order-repository');
@@ -228,9 +252,33 @@ describe('infrastructure adapters', () => {
     documentSendMock.mockRejectedValueOnce(
       new ConditionalCheckFailedException('The conditional request failed.')
     );
+    documentSendMock.mockResolvedValueOnce({});
     await expect(
       repository.updateStatus('missing', 'APPROVED')
     ).rejects.toThrow('Order missing was not found.');
+
+    documentSendMock.mockRejectedValueOnce(
+      new ConditionalCheckFailedException('The conditional request failed.')
+    );
+    documentSendMock.mockResolvedValueOnce({
+      Item: {
+        pk: 'ORDER#order-1',
+        sk: 'ORDER',
+        id: 'order-1',
+        customerId: 'customer-1',
+        items: [{ productId: 'SKU-1', quantity: 1 }],
+        status: 'CANCELLED',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-03T00:00:00.000Z',
+        correlationId: 'corr-1',
+        idempotencyKey: 'idem-1'
+      }
+    });
+    await expect(
+      repository.updateStatus('order-1', 'DELIVERED')
+    ).rejects.toThrow(
+      'Order order-1 is already CANCELLED and cannot be updated further.'
+    );
 
     documentSendMock.mockRejectedValueOnce(
       new TransactionCanceledException('Transaction cancelled.')

@@ -393,11 +393,12 @@ describe('HTTP handlers', () => {
       })
     );
 
-    await repository.updateStatus('order-1', 'DELIVERED');
+    await seedOrder(repository, 'order-2');
+    await repository.updateStatus('order-2', 'DELIVERED');
     const alreadyDelivered = await invokeHandler(
       handler,
       baseEvent({
-        pathParameters: { id: 'order-1' },
+        pathParameters: { id: 'order-2' },
         requestContext: {
           ...baseEvent().requestContext,
           http: { ...baseEvent().requestContext.http, method: 'DELETE' }

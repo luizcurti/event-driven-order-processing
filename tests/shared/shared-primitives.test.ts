@@ -82,6 +82,26 @@ describe('shared primitives', () => {
         items: []
       })
     ).toThrow();
+
+    expect(
+      createOrderSchema.parse({
+        customerId: 'customer-1',
+        items: Array.from({ length: 50 }, (_, index) => ({
+          productId: `SKU-${index}`,
+          quantity: 1
+        }))
+      }).items
+    ).toHaveLength(50);
+
+    expect(() =>
+      createOrderSchema.parse({
+        customerId: 'customer-1',
+        items: Array.from({ length: 51 }, (_, index) => ({
+          productId: `SKU-${index}`,
+          quantity: 1
+        }))
+      })
+    ).toThrow(/50/);
   });
 
   it('parses create order request bodies into ValidationError on failure', () => {

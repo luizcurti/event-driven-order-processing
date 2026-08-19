@@ -4,12 +4,14 @@ import type {
   OrderRepository,
   StructuredLogger
 } from '../../shared/application/ports';
-import type {
-  EventEnvelope,
-  OrderEventDetail
-} from '../../shared/domain/order';
 
-import { InventoryException } from '../../shared/errors/app-errors';
+import { buildEventEnvelope } from '../../shared/domain/event-envelope';
+import {
+  InventoryException,
+  OrderAlreadyFinalizedException
+} from '../../shared/errors/app-errors';
+
+const MAX_AVAILABLE_QUANTITY_PER_ITEM = 5;
 
 export interface InventoryResult {
   orderId: string;
@@ -39,33 +41,47 @@ export class CheckInventoryUseCase {
 
     const inventoryStatus =
       this.featureFlags.inventoryCheckEnabled &&
-      order.items.some((item) => item.quantity > 5)
+      order.items.some(
+        (item) => item.quantity > MAX_AVAILABLE_QUANTITY_PER_ITEM
+      )
         ? 'OUT_OF_STOCK'
         : 'AVAILABLE';
+    const orderStatus =
+      inventoryStatus === 'AVAILABLE' ? 'PROCESSING' : 'OUT_OF_STOCK';
 
-    await this.repository.updateStatus(
-      orderId,
-      inventoryStatus === 'AVAILABLE' ? 'PROCESSING' : 'OUT_OF_STOCK'
-    );
+    try {
+      await this.repository.updateStatus(orderId, orderStatus);
+    } catch (error) {
+      if (!(error instanceof OrderAlreadyFinalizedException)) {
+        throw error;
+      }
 
-    const event: EventEnvelope<OrderEventDetail> = {
-      source: 'order.processing',
-      detailType:
-        inventoryStatus === 'AVAILABLE'
-          ? 'InventoryValidated'
-          : 'InventoryFailed',
-      version: 'v1',
+      this.logger.info(
+        'Order was already finalized; skipping inventory update.',
+        {
+          orderId,
+          correlationId,
+          status: error.currentStatus
+        }
+      );
+
+      return { orderId, inventoryStatus, correlationId };
+    }
+
+    const event = buildEventEnvelope(
+      inventoryStatus === 'AVAILABLE'
+        ? 'InventoryValidated'
+        : 'InventoryFailed',
       correlationId,
-      timestamp: new Date().toISOString(),
-      detail: {
+      {
         orderId,
-        status: inventoryStatus === 'AVAILABLE' ? 'PROCESSING' : 'OUT_OF_STOCK',
+        status: orderStatus,
         reason:
           inventoryStatus === 'AVAILABLE'
             ? undefined
             : 'Requested quantity exceeded available stock.'
       }
-    };
+    );
 
     await this.eventPublisher.publish(event);
     this.logger.info('Inventory validation completed.', {

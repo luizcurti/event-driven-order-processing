@@ -6,12 +6,9 @@ import type {
   OrderRepository,
   StructuredLogger
 } from '../../shared/application/ports';
-import type {
-  EventEnvelope,
-  Order,
-  OrderEventDetail
-} from '../../shared/domain/order';
+import type { Order } from '../../shared/domain/order';
 
+import { buildEventEnvelope } from '../../shared/domain/event-envelope';
 import { DuplicateIdempotencyKeyException } from '../../shared/errors/app-errors';
 
 export interface CreateOrderRequest extends CreateOrderPayload {
@@ -69,19 +66,12 @@ export class CreateOrderUseCase {
       throw error;
     }
 
-    const event: EventEnvelope<OrderEventDetail> = {
-      source: 'order.processing',
-      detailType: 'OrderCreated',
-      version: 'v1',
-      correlationId: request.correlationId,
-      timestamp,
-      detail: {
-        orderId: order.id,
-        customerId: order.customerId,
-        items: order.items,
-        status: order.status
-      }
-    };
+    const event = buildEventEnvelope('OrderCreated', request.correlationId, {
+      orderId: order.id,
+      customerId: order.customerId,
+      items: order.items,
+      status: order.status
+    });
 
     await this.eventPublisher.publish(event);
 

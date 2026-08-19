@@ -13,6 +13,19 @@ export const orderStatuses = [
 
 export type OrderStatus = (typeof orderStatuses)[number];
 
+/**
+ * Statuses a workflow step must never silently overwrite: once an order is
+ * cancelled or delivered, that outcome must win any race against an
+ * in-flight (or late-arriving) status transition from another step.
+ */
+export const finalizedOrderStatuses: readonly OrderStatus[] = [
+  'CANCELLED',
+  'DELIVERED'
+];
+
+export const isOrderFinalized = (status: OrderStatus): boolean =>
+  finalizedOrderStatuses.includes(status);
+
 export interface OrderItem {
   productId: string;
   quantity: number;
