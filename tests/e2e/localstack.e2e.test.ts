@@ -241,4 +241,99 @@ describe.sequential('LocalStack end-to-end flow', () => {
     expect(cancelResponse.status).toBe(200);
     expect(cancelResponse.body.status).toBe('CANCELLED');
   });
+
+  it('reads a created order back through GET /orders/{id}', async () => {
+    const createResponse = await getJson<{ orderId: string; status: string }>(
+      `http://127.0.0.1:${server.port}/orders`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-correlation-id': 'corr-get',
+          'idempotency-key': 'idem-get'
+        },
+        body: JSON.stringify({
+          customerId: 'customer-get',
+          items: [{ productId: 'SKU-6', quantity: 1 }]
+        })
+      }
+    );
+
+    const getResponse = await getJson<Record<string, unknown>>(
+      `http://127.0.0.1:${server.port}/orders/${createResponse.body.orderId}`
+    );
+
+    expect(getResponse.status).toBe(200);
+    expect(getResponse.body.id).toBe(createResponse.body.orderId);
+    expect(getResponse.body.customerId).toBe('customer-get');
+  });
+
+  it('rejects order creation with an invalid payload', async () => {
+    const missingItems = await getJson<Record<string, unknown>>(
+      `http://127.0.0.1:${server.port}/orders`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ customerId: 'customer-invalid', items: [] })
+      }
+    );
+
+    expect(missingItems.status).toBe(400);
+    expect(missingItems.body.error).toBe('VALIDATION_ERROR');
+
+    const malformedJson = await getJson<Record<string, unknown>>(
+      `http://127.0.0.1:${server.port}/orders`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: '{not-json'
+      }
+    );
+
+    expect(malformedJson.status).toBe(400);
+    expect(malformedJson.body.error).toBe('VALIDATION_ERROR');
+  });
+
+  it('returns 404 for get and cancel operations on an unknown order', async () => {
+    const getResponse = await getJson<Record<string, unknown>>(
+      `http://127.0.0.1:${server.port}/orders/does-not-exist`
+    );
+    expect(getResponse.status).toBe(404);
+    expect(getResponse.body.error).toBe('ORDER_NOT_FOUND');
+
+    const cancelResponse = await getJson<Record<string, unknown>>(
+      `http://127.0.0.1:${server.port}/orders/does-not-exist`,
+      { method: 'DELETE' }
+    );
+    expect(cancelResponse.status).toBe(404);
+    expect(cancelResponse.body.error).toBe('ORDER_NOT_FOUND');
+  });
+
+  it('rejects cancelling an order that has already been delivered', async () => {
+    const createResponse = await getJson<{ orderId: string; status: string }>(
+      `http://127.0.0.1:${server.port}/orders`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-correlation-id': 'corr-cancel-delivered',
+          'idempotency-key': 'idem-cancel-delivered'
+        },
+        body: JSON.stringify({
+          customerId: 'customer-cancel-delivered',
+          items: [{ productId: 'SKU-7', quantity: 1 }]
+        })
+      }
+    );
+
+    await waitForOrderStatus(createResponse.body.orderId, 'DELIVERED');
+
+    const cancelResponse = await getJson<Record<string, unknown>>(
+      `http://127.0.0.1:${server.port}/orders/${createResponse.body.orderId}`,
+      { method: 'DELETE' }
+    );
+
+    expect(cancelResponse.status).toBe(400);
+    expect(cancelResponse.body.error).toBe('VALIDATION_ERROR');
+  });
 });
