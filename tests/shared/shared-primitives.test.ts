@@ -1,3 +1,7 @@
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -13,6 +17,9 @@ import { PowertoolsStructuredLogger } from '../../src/shared/infrastructure/logg
 import {
   createDynamoDbClientConfig,
   createEventBridgeClientConfig,
+  createIamClientConfig,
+  createLambdaClientConfig,
+  createSfnClientConfig,
   createSqsClientConfig,
   isLocalAwsRuntime
 } from '../../src/shared/infrastructure/aws-client-config';
@@ -36,6 +43,7 @@ describe('shared primitives', () => {
     delete process.env.AWS_REGION;
     delete process.env.AWS_ACCESS_KEY_ID;
     delete process.env.AWS_SECRET_ACCESS_KEY;
+    delete process.env.LOG_FILE_PATH;
   });
 
   afterEach(() => {
@@ -194,6 +202,26 @@ describe('shared primitives', () => {
     expect(errorEntry.orderId).toBe('order-1');
   });
 
+  it('also appends structured logs to a file when LOG_FILE_PATH is set', () => {
+    vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    const tempDir = mkdtempSync(join(tmpdir(), 'order-processing-logs-'));
+    const logFilePath = join(tempDir, 'nested', 'local-server.log');
+    process.env.LOG_FILE_PATH = logFilePath;
+
+    try {
+      const logger = new PowertoolsStructuredLogger('test-service');
+      logger.info('written to file');
+
+      const fileContent = readFileSync(logFilePath, 'utf8').trim();
+      const entry = JSON.parse(fileContent) as Record<string, string>;
+
+      expect(entry.message).toBe('written to file');
+      expect(entry.service).toBe('test-service');
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
   it('builds local AWS client configuration only when LocalStack is enabled', () => {
     expect(isLocalAwsRuntime()).toBe(false);
     expect(createDynamoDbClientConfig()).toEqual({});
@@ -228,5 +256,8 @@ describe('shared primitives', () => {
       createDynamoDbClientConfig()
     );
     expect(createSqsClientConfig()).toEqual(createDynamoDbClientConfig());
+    expect(createLambdaClientConfig()).toEqual(createDynamoDbClientConfig());
+    expect(createIamClientConfig()).toEqual(createDynamoDbClientConfig());
+    expect(createSfnClientConfig()).toEqual(createDynamoDbClientConfig());
   });
 });

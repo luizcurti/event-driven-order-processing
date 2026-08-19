@@ -13,6 +13,8 @@ const useCase = new ProcessPaymentUseCase(
   logger
 );
 
-export const handler = createStepHandler(logger, (orderId, correlationId) =>
-  useCase.execute(orderId, correlationId)
+export const handler = createStepHandler(
+  'payment',
+  logger,
+  (orderId, correlationId) => useCase.execute(orderId, correlationId)
 );

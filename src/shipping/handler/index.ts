@@ -6,6 +6,7 @@ import {
   createLogger,
   createOrderRepository
 } from '../../shared/infrastructure/factory';
+import { withInvocationMetrics } from '../../shared/infrastructure/metrics';
 
 const logger = createLogger('shipping');
 const useCase = new ProcessShippingUseCase(
@@ -14,6 +15,9 @@ const useCase = new ProcessShippingUseCase(
   logger
 );
 
-export const handler: SQSHandler = async (event) => {
-  await useCase.execute(event);
-};
+export const handler: SQSHandler = withInvocationMetrics(
+  'shipping',
+  async (event) => {
+    await useCase.execute(event);
+  }
+);

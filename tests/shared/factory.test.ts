@@ -7,9 +7,11 @@ import {
   createEventPublisher,
   createLogger,
   createOrderRepository,
-  createQueuePublisher
+  createQueuePublisher,
+  createStepHandler
 } from '../../src/shared/infrastructure/factory';
 import { PowertoolsStructuredLogger } from '../../src/shared/infrastructure/logger';
+import { FakeLogger } from '../support/fakes';
 
 describe('infrastructure factory', () => {
   const originalEnv = { ...process.env };
@@ -37,5 +39,20 @@ describe('infrastructure factory', () => {
     expect(() => createEventPublisher()).toThrow(
       'EVENT_BUS_NAME environment variable is required.'
     );
+  });
+
+  it('propagates step handler failures after recording them', async () => {
+    const logger = new FakeLogger();
+    const handler = createStepHandler('fraud', logger, () => {
+      throw new Error('boom');
+    });
+
+    await expect(
+      handler(
+        { orderId: 'order-1', correlationId: 'corr-1' },
+        {} as never,
+        () => {}
+      )
+    ).rejects.toThrow('boom');
   });
 });

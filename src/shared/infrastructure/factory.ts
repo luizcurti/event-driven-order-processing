@@ -10,6 +10,7 @@ import type {
 import type { OrderStepEvent } from '../domain/order';
 
 import { PowertoolsStructuredLogger } from './logger';
+import { pushInvocationMetrics } from './metrics';
 import { EventBridgePublisher } from './publishers/eventbridge-publisher';
 import { SqsQueuePublisher } from './publishers/sqs-queue-publisher';
 import { DynamoDbOrderRepository } from './repositories/dynamodb-order-repository';
@@ -27,6 +28,7 @@ export const createFeatureFlags = (): FeatureFlags => ({
  * propagating correlation/order context to the logger before execution.
  */
 export const createStepHandler = <TResult>(
+  serviceName: string,
   logger: StructuredLogger,
   execute: (orderId: string, correlationId: string) => Promise<TResult>
 ): Handler<OrderStepEvent, TResult> => {
@@ -36,7 +38,27 @@ export const createStepHandler = <TResult>(
       orderId: event.orderId
     });
 
-    return execute(event.orderId, event.correlationId);
+    const startedAt = process.hrtime.bigint();
+
+    try {
+      const result = await execute(event.orderId, event.correlationId);
+
+      await pushInvocationMetrics(
+        serviceName,
+        Number(process.hrtime.bigint() - startedAt) / 1e9,
+        'success'
+      );
+
+      return result;
+    } catch (error) {
+      await pushInvocationMetrics(
+        serviceName,
+        Number(process.hrtime.bigint() - startedAt) / 1e9,
+        'error'
+      );
+
+      throw error;
+    }
   };
 };
 

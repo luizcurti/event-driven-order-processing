@@ -29,9 +29,9 @@ export interface LocalstackResources {
   deadLetterQueueUrl: string;
 }
 
-const localstackEndpoint =
+export const localstackEndpoint =
   process.env.LOCAL_AWS_ENDPOINT ?? 'http://localhost:4567';
-const resourcePrefix =
+export const resourcePrefix =
   process.env.LOCALSTACK_RESOURCE_PREFIX ??
   'event-driven-order-processing-local';
 

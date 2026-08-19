@@ -10,7 +10,10 @@ Usage:
   ./local.sh ready    # Start LocalStack/bootstrap and run local HTTP API (Postman ready)
   ./local.sh tf       # Validate Terraform (fmt + init -backend=false + validate)
   ./local.sh test     # Run typecheck, lint, unit/coverage tests and e2e
-  ./local.sh down     # Stop LocalStack and remove volumes
+  ./local.sh down     # Stop LocalStack and remove volumes (leaves the observability stack running, if up)
+  ./local.sh obs      # Start LocalStack (if needed) plus Prometheus, Pushgateway, Loki, Promtail and Grafana
+  ./local.sh obs:down # Stop only the observability stack and remove its volumes (leaves LocalStack running)
+  ./local.sh lambdas  # Package and deploy the real Lambda handlers into LocalStack
   ./local.sh all      # Run up + tf + test
   ./local.sh help     # Show this help
 EOF
@@ -86,6 +89,37 @@ ready() {
   (cd "$ROOT_DIR" && npm run local:start)
 }
 
+obs_up() {
+  require_cmd docker
+  require_cmd npm
+  run_npm observability:up
+  run_npm local:bootstrap
+
+  cat <<'EOF'
+LocalStack, Prometheus, Pushgateway, Loki, Promtail and Grafana are up.
+  Grafana:     http://localhost:3001 (anonymous access, "Order Processing - Local Server" dashboard)
+  Prometheus:  http://localhost:9090
+  Pushgateway: http://localhost:9091
+Start the local HTTP API (npm run local:start) so Prometheus has something to scrape at /metrics
+and structured logs are written to logs/local-server.log for Promtail to ship to Loki.
+Run `./local.sh lambdas` to deploy the real Lambda handlers, then
+`USE_REAL_LAMBDAS=true npm run local:start` for full production-topology fidelity
+(real EventBridge rules, Step Functions and SQS event source mappings, with
+per-invocation metrics pushed to Pushgateway and logs captured from the Lambda
+containers by Promtail).
+EOF
+}
+
+obs_down() {
+  require_cmd npm
+  run_npm observability:down
+}
+
+lambdas() {
+  require_cmd npm
+  run_npm local:deploy-lambdas
+}
+
 main() {
   local action="${1:-help}"
 
@@ -104,6 +138,15 @@ main() {
       ;;
     down)
       down
+      ;;
+    obs)
+      obs_up
+      ;;
+    obs:down)
+      obs_down
+      ;;
+    lambdas)
+      lambdas
       ;;
     all)
       all

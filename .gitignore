@@ -5,3 +5,4 @@ coverage/
 *.tfstate
 *.tfstate.*
 .DS_Store
+logs/*.log

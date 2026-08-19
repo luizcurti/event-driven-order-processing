@@ -1,12 +1,16 @@
 import http from 'node:http';
 import { URL } from 'node:url';
 
+import { InvokeCommand, LambdaClient } from '@aws-sdk/client-lambda';
 import {
   DeleteMessageBatchCommand,
   ReceiveMessageCommand,
   SQSClient
 } from '@aws-sdk/client-sqs';
-import type { APIGatewayProxyStructuredResultV2 } from 'aws-lambda';
+import type {
+  APIGatewayProxyEventV2,
+  APIGatewayProxyStructuredResultV2
+} from 'aws-lambda';
 
 import { CreateOrderUseCase } from '../../src/create-order/application/create-order';
 import { CheckFraudUseCase } from '../../src/fraud/application/check-fraud';
@@ -29,12 +33,22 @@ import {
   createLogger,
   createOrderRepository
 } from '../../src/shared/infrastructure/factory';
-import { createSqsClientConfig } from '../../src/shared/infrastructure/aws-client-config';
+import {
+  createLambdaClientConfig,
+  createSqsClientConfig
+} from '../../src/shared/infrastructure/aws-client-config';
 import { createQueuePublisher } from '../../src/shared/infrastructure/factory';
+import {
+  enableDefaultMetrics,
+  httpRequestDurationSeconds,
+  orderWorkflowOutcomesTotal,
+  ordersCreatedTotal,
+  registry
+} from '../../src/shared/infrastructure/metrics';
 import { errorResponse, jsonResponse } from '../../src/shared/utils/http';
 import { ProcessShippingUseCase } from '../../src/shipping/application/process-shipping';
 import { parseCreateOrderPayload } from '../../src/shared/validation/order-schema';
-import { ensureLocalstackResources } from './bootstrap';
+import { ensureLocalstackResources, resourcePrefix } from './bootstrap';
 
 interface LocalServerHandle {
   port: number;
@@ -96,6 +110,9 @@ export const startLocalServer = async (
 ): Promise<LocalServerHandle> => {
   const resources = await ensureLocalstackResources();
 
+  enableDefaultMetrics();
+
+  process.env.LOG_FILE_PATH ??= 'logs/local-server.log';
   const logger = createLogger('local-server');
   const repository = createOrderRepository();
   const eventPublisher = createEventPublisher();
@@ -133,6 +150,77 @@ export const startLocalServer = async (
     logger
   );
   const notificationUseCase = new SendNotificationUseCase(logger);
+
+  const useRealLambdas = process.env.USE_REAL_LAMBDAS === 'true';
+  const lambdaClient = useRealLambdas
+    ? new LambdaClient(createLambdaClientConfig())
+    : undefined;
+
+  const invokeLambda = async (
+    key: string,
+    event: APIGatewayProxyEventV2
+  ): Promise<APIGatewayProxyStructuredResultV2> => {
+    const response = await lambdaClient!.send(
+      new InvokeCommand({
+        FunctionName: `${resourcePrefix}-${key}`,
+        Payload: Buffer.from(JSON.stringify(event))
+      })
+    );
+
+    if (response.FunctionError) {
+      return jsonResponse(500, {
+        error: 'LAMBDA_INVOCATION_FAILED',
+        message: response.FunctionError
+      });
+    }
+
+    const payload = response.Payload
+      ? (JSON.parse(
+          Buffer.from(response.Payload).toString('utf8')
+        ) as APIGatewayProxyStructuredResultV2)
+      : jsonResponse(204, {});
+
+    return payload;
+  };
+
+  const toApiGatewayEvent = (
+    request: http.IncomingMessage,
+    url: URL,
+    body: string,
+    pathParameters?: Record<string, string>
+  ): APIGatewayProxyEventV2 => ({
+    version: '2.0',
+    routeKey: '$default',
+    rawPath: url.pathname,
+    rawQueryString: url.search.replace(/^\?/, ''),
+    headers: Object.fromEntries(
+      Object.entries(request.headers).map(([key, value]) => [
+        key,
+        Array.isArray(value) ? value.join(',') : (value ?? '')
+      ])
+    ),
+    ...(pathParameters ? { pathParameters } : {}),
+    requestContext: {
+      accountId: '000000000000',
+      apiId: 'local-api',
+      domainName: 'localhost',
+      domainPrefix: 'localhost',
+      requestId: crypto.randomUUID(),
+      routeKey: '$default',
+      stage: '$default',
+      time: new Date().toISOString(),
+      timeEpoch: Date.now(),
+      http: {
+        method: request.method ?? 'GET',
+        path: url.pathname,
+        protocol: 'HTTP/1.1',
+        sourceIp: '127.0.0.1',
+        userAgent: request.headers['user-agent'] ?? 'local-shim'
+      }
+    },
+    body,
+    isBase64Encoded: false
+  });
 
   const drainQueue = async (
     queueUrl: string,
@@ -198,6 +286,7 @@ export const startLocalServer = async (
     );
 
     if (inventoryResult.inventoryStatus === 'OUT_OF_STOCK') {
+      orderWorkflowOutcomesTotal.inc({ outcome: 'out_of_stock' });
       await queuePublisher.send(resources.notificationQueueUrl, {
         orderId,
         correlationId,
@@ -213,6 +302,7 @@ export const startLocalServer = async (
     const paymentResult = await paymentUseCase.execute(orderId, correlationId);
 
     if (paymentResult.paymentStatus === 'FAILED') {
+      orderWorkflowOutcomesTotal.inc({ outcome: 'payment_failed' });
       await queuePublisher.send(resources.notificationQueueUrl, {
         orderId,
         correlationId,
@@ -228,6 +318,7 @@ export const startLocalServer = async (
     const fraudResult = await fraudUseCase.execute(orderId, correlationId);
 
     if (fraudResult.fraudStatus === 'REJECTED') {
+      orderWorkflowOutcomesTotal.inc({ outcome: 'fraud_rejected' });
       await queuePublisher.send(resources.notificationQueueUrl, {
         orderId,
         correlationId,
@@ -240,6 +331,7 @@ export const startLocalServer = async (
       return;
     }
 
+    orderWorkflowOutcomesTotal.inc({ outcome: 'approved' });
     await publishOrderApproved(orderId, correlationId);
     await queuePublisher.send(resources.shippingQueueUrl, {
       orderId,
@@ -250,6 +342,14 @@ export const startLocalServer = async (
     });
   };
 
+  const normalizeRoute = (pathname: string): string => {
+    if (pathname.startsWith('/orders/')) {
+      return '/orders/:id';
+    }
+
+    return pathname;
+  };
+
   const handleRequest = async (
     request: http.IncomingMessage,
     response: http.ServerResponse
@@ -258,8 +358,60 @@ export const startLocalServer = async (
       request.url ?? '/',
       `http://${request.headers.host ?? 'localhost'}`
     );
+    const method = request.method ?? 'UNKNOWN';
+    const route = normalizeRoute(url.pathname);
+    const endTimer = httpRequestDurationSeconds.startTimer();
+
+    response.once('finish', () => {
+      endTimer({ method, route, status_code: String(response.statusCode) });
+    });
+
+    if (method === 'GET' && url.pathname === '/metrics') {
+      response.writeHead(200, { 'content-type': registry.contentType });
+      response.end(await registry.metrics());
+      return;
+    }
 
     try {
+      if (useRealLambdas) {
+        if (request.method === 'POST' && url.pathname === '/orders') {
+          const rawBody = await readBody(request);
+          const event = toApiGatewayEvent(request, url, rawBody);
+          sendResponse(response, await invokeLambda('create-order', event));
+          return;
+        }
+
+        if (request.method === 'GET' && url.pathname === '/orders') {
+          const event = toApiGatewayEvent(request, url, '');
+          sendResponse(response, await invokeLambda('list-orders', event));
+          return;
+        }
+
+        if (url.pathname.startsWith('/orders/')) {
+          const orderId = url.pathname.replace('/orders/', '');
+          const event = toApiGatewayEvent(request, url, '', { id: orderId });
+
+          if (request.method === 'GET') {
+            sendResponse(response, await invokeLambda('get-order', event));
+            return;
+          }
+
+          if (request.method === 'DELETE') {
+            sendResponse(response, await invokeLambda('cancel-order', event));
+            return;
+          }
+        }
+
+        sendResponse(
+          response,
+          jsonResponse(404, {
+            error: 'NOT_FOUND',
+            message: 'Route not found.'
+          })
+        );
+        return;
+      }
+
       if (request.method === 'POST' && url.pathname === '/orders') {
         const rawBody = await readBody(request);
 
@@ -282,6 +434,7 @@ export const startLocalServer = async (
         });
 
         if (!result.reused) {
+          ordersCreatedTotal.inc();
           void processOrderWorkflow(result.orderId, correlationId);
         }
 

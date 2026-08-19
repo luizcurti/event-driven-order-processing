@@ -7,6 +7,7 @@ import type {
 import type { StructuredLogger } from '../application/ports';
 
 import { AppError } from '../errors/app-errors';
+import { pushInvocationMetrics } from '../infrastructure/metrics';
 import { getCorrelationId } from './correlation';
 
 export const jsonResponse = (
@@ -49,8 +50,11 @@ export const withHttpHandler = (
     correlationId: string
   ) => Promise<APIGatewayProxyStructuredResultV2>
 ): APIGatewayProxyHandlerV2 => {
+  const serviceName = operationName.replace(/\s+/g, '-');
+
   return async (event) => {
     const correlationId = getCorrelationId(event);
+    const startedAt = process.hrtime.bigint();
 
     logger.addContext({
       correlationId,
@@ -58,12 +62,26 @@ export const withHttpHandler = (
     });
 
     try {
-      return await execute(event, correlationId);
+      const result = await execute(event, correlationId);
+
+      await pushInvocationMetrics(
+        serviceName,
+        Number(process.hrtime.bigint() - startedAt) / 1e9,
+        'success'
+      );
+
+      return result;
     } catch (error) {
       logger.error(`Failed to ${operationName}.`, {
         correlationId,
         error: error instanceof Error ? error.message : 'unknown'
       });
+
+      await pushInvocationMetrics(
+        serviceName,
+        Number(process.hrtime.bigint() - startedAt) / 1e9,
+        'error'
+      );
 
       return errorResponse(error);
     }

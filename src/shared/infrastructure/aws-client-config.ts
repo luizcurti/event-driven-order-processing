@@ -1,5 +1,8 @@
 import type { DynamoDBClientConfig } from '@aws-sdk/client-dynamodb';
 import type { EventBridgeClientConfig } from '@aws-sdk/client-eventbridge';
+import type { IAMClientConfig } from '@aws-sdk/client-iam';
+import type { LambdaClientConfig } from '@aws-sdk/client-lambda';
+import type { SFNClientConfig } from '@aws-sdk/client-sfn';
 import type { SQSClientConfig } from '@aws-sdk/client-sqs';
 
 const isLocalAwsRuntimeEnabled = (): boolean =>
@@ -30,6 +33,15 @@ export const createEventBridgeClientConfig = (): EventBridgeClientConfig =>
   buildLocalAwsClientConfig();
 
 export const createSqsClientConfig = (): SQSClientConfig =>
+  buildLocalAwsClientConfig();
+
+export const createLambdaClientConfig = (): LambdaClientConfig =>
+  buildLocalAwsClientConfig();
+
+export const createIamClientConfig = (): IAMClientConfig =>
+  buildLocalAwsClientConfig();
+
+export const createSfnClientConfig = (): SFNClientConfig =>
   buildLocalAwsClientConfig();
 
 export const isLocalAwsRuntime = isLocalAwsRuntimeEnabled;

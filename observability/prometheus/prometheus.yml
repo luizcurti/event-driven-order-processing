@@ -1,0 +1,16 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: 'order-processing-local-server'
+    static_configs:
+      - targets: ['host.docker.internal:3000']
+
+  # Ephemeral Lambda invocations can't be scraped (the process exits right
+  # after the invocation), so they push their metrics here instead. See
+  # pushInvocationMetrics in src/shared/infrastructure/metrics.ts.
+  - job_name: 'pushgateway'
+    honor_labels: true
+    static_configs:
+      - targets: ['pushgateway:9091']

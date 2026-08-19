@@ -15,6 +15,8 @@ const useCase = new CheckInventoryUseCase(
   logger
 );
 
-export const handler = createStepHandler(logger, (orderId, correlationId) =>
-  useCase.execute(orderId, correlationId)
+export const handler = createStepHandler(
+  'inventory',
+  logger,
+  (orderId, correlationId) => useCase.execute(orderId, correlationId)
 );
