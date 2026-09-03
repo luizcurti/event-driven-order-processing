@@ -1,8 +1,10 @@
 node_modules/
 dist/
 coverage/
+artifacts/
 .terraform/
 *.tfstate
 *.tfstate.*
 .DS_Store
 logs/*.log
+.claude/

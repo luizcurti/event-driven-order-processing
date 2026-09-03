@@ -91,8 +91,7 @@ describe('HTTP handlers', () => {
     vi.doMock('../../src/shared/infrastructure/factory', () => ({
       createLogger: () => logger,
       createOrderRepository: () => repository,
-      createEventPublisher: () => eventPublisher,
-      createQueuePublisher: vi.fn()
+      createEventPublisher: () => eventPublisher
     }));
 
     const { handler } = await import('../../src/create-order/handler/index');
@@ -142,8 +141,7 @@ describe('HTTP handlers', () => {
     vi.doMock('../../src/shared/infrastructure/factory', () => ({
       createLogger: () => logger,
       createOrderRepository: vi.fn(),
-      createEventPublisher: vi.fn(),
-      createQueuePublisher: vi.fn()
+      createEventPublisher: vi.fn()
     }));
     vi.doMock('../../src/create-order/application/create-order', () => ({
       CreateOrderUseCase: class {

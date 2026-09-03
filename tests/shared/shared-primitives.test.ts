@@ -250,7 +250,7 @@ describe('shared primitives', () => {
 
     process.env.USE_LOCALSTACK = 'true';
     expect(createDynamoDbClientConfig()).toEqual({
-      endpoint: 'http://localhost:4566',
+      endpoint: 'http://localhost:4567',
       region: 'us-east-1',
       credentials: {
         accessKeyId: 'test',

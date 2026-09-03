@@ -7,46 +7,61 @@ locals {
     ManagedBy   = "terraform"
   }
 
+  # role_group selects the least-privilege IAM role each function gets from
+  # the iam_* modules below: "read-only" (query/get only), "order-write"
+  # (read/write the orders table + publish events), "shipping" (order-write
+  # plus consuming shipping-queue) or "notification" (consumes
+  # notification-queue only -- it never touches DynamoDB or EventBridge).
   lambda_config = {
     create-order = {
-      handler = "dist/src/create-order/handler/index.handler"
-      timeout = 15
+      handler    = "index.handler"
+      timeout    = 15
+      role_group = "order-write"
     }
     get-order = {
-      handler = "dist/src/orders/handler/get-order.handler"
-      timeout = 10
+      handler    = "index.handler"
+      timeout    = 10
+      role_group = "read-only"
     }
     list-orders = {
-      handler = "dist/src/orders/handler/list-orders.handler"
-      timeout = 10
+      handler    = "index.handler"
+      timeout    = 10
+      role_group = "read-only"
     }
     cancel-order = {
-      handler = "dist/src/orders/handler/cancel-order.handler"
-      timeout = 10
+      handler    = "index.handler"
+      timeout    = 10
+      role_group = "order-write"
     }
     inventory = {
-      handler = "dist/src/inventory/handler/index.handler"
-      timeout = 15
+      handler    = "index.handler"
+      timeout    = 15
+      role_group = "order-write"
     }
     payment = {
-      handler = "dist/src/payment/handler/index.handler"
-      timeout = 15
+      handler    = "index.handler"
+      timeout    = 15
+      role_group = "order-write"
     }
     fraud = {
-      handler = "dist/src/fraud/handler/index.handler"
-      timeout = 15
+      handler    = "index.handler"
+      timeout    = 15
+      role_group = "order-write"
     }
     shipping = {
-      handler = "dist/src/shipping/handler/index.handler"
-      timeout = 30
+      handler    = "index.handler"
+      timeout    = 30
+      role_group = "shipping"
     }
     notification = {
-      handler = "dist/src/notification/handler/index.handler"
-      timeout = 30
+      handler    = "index.handler"
+      timeout    = 30
+      role_group = "notification"
     }
     update-order = {
-      handler = "dist/src/update-order/handler/index.handler"
-      timeout = 15
+      handler    = "index.handler"
+      timeout    = 15
+      role_group = "order-write"
     }
   }
 }
@@ -144,15 +159,75 @@ module "dynamodb" {
   tags       = local.tags
 }
 
-module "iam_bootstrap" {
-  source                 = "../../modules/iam"
-  project_name           = local.name_prefix
-  orders_table_arn       = module.dynamodb.table_arn
+# Least-privilege Lambda execution roles, one per access pattern (see the
+# role_group comment on local.lambda_config above). Deliberately grouped
+# rather than one role per function: still a large reduction in blast radius
+# from a single shared role, without 10 near-identical role definitions.
+module "iam_read_only" {
+  source             = "../../modules/iam-lambda-role"
+  role_name          = "${local.name_prefix}-read-only-role"
+  dynamodb_table_arn = module.dynamodb.table_arn
+  dynamodb_actions   = ["dynamodb:GetItem", "dynamodb:Query"]
+  tags               = local.tags
+}
+
+module "iam_order_write" {
+  source             = "../../modules/iam-lambda-role"
+  role_name          = "${local.name_prefix}-order-write-role"
+  dynamodb_table_arn = module.dynamodb.table_arn
+  # Union of what every function sharing this role needs: create-order's
+  # idempotent create (Query on IdempotencyIndex, then a TransactWriteItems
+  # put of the order + marker) needs Query/PutItem/TransactWriteItems --
+  # PutItem is required alongside TransactWriteItems because DynamoDB's IAM
+  # check for a Put-type transaction item also requires the underlying
+  # single-item action, even though no code ever issues a raw PutItem call.
+  # cancel-order/update-order/inventory/payment/fraud only ever call
+  # repository.updateStatus() (GetItem + UpdateItem, see iam_shipping above
+  # for the same pattern without the create-order-only actions).
+  dynamodb_actions = [
+    "dynamodb:GetItem",
+    "dynamodb:PutItem",
+    "dynamodb:UpdateItem",
+    "dynamodb:Query",
+    "dynamodb:TransactWriteItems"
+  ]
+  event_bus_arn    = module.eventbridge.bus_arn
+  allow_events_put = true
+  tags             = local.tags
+}
+
+module "iam_shipping" {
+  source             = "../../modules/iam-lambda-role"
+  role_name          = "${local.name_prefix}-shipping-role"
+  dynamodb_table_arn = module.dynamodb.table_arn
+  # ProcessShippingUseCase only ever calls repository.updateStatus() (never
+  # create()), so it needs UpdateItem plus the GetItem the repository's
+  # conditional-check-failure fallback issues -- not Query/PutItem/
+  # TransactWriteItems, which only create-order's idempotent-create path uses.
+  dynamodb_actions = [
+    "dynamodb:GetItem",
+    "dynamodb:UpdateItem"
+  ]
   event_bus_arn          = module.eventbridge.bus_arn
-  shipping_queue_arn     = module.sqs.shipping_queue_arn
-  notification_queue_arn = module.sqs.notification_queue_arn
-  lambda_arns            = []
+  allow_events_put       = true
+  sqs_consume_queue_arns = [module.sqs.shipping_queue_arn]
   tags                   = local.tags
+}
+
+module "iam_notification" {
+  source                 = "../../modules/iam-lambda-role"
+  role_name              = "${local.name_prefix}-notification-role"
+  sqs_consume_queue_arns = [module.sqs.notification_queue_arn]
+  tags                   = local.tags
+}
+
+locals {
+  lambda_role_arns = {
+    read-only    = module.iam_read_only.role_arn
+    order-write  = module.iam_order_write.role_arn
+    shipping     = module.iam_shipping.role_arn
+    notification = module.iam_notification.role_arn
+  }
 }
 
 module "lambdas" {
@@ -163,7 +238,7 @@ module "lambdas" {
   filename      = "${path.root}/../../../artifacts/${each.key}.zip"
   handler       = each.value.handler
   timeout       = each.value.timeout
-  role_arn      = module.iam_bootstrap.lambda_role_arn
+  role_arn      = local.lambda_role_arns[each.value.role_group]
   tags          = local.tags
 
   environment_variables = {
@@ -174,10 +249,9 @@ module "lambdas" {
   }
 }
 
-module "iam_runtime" {
-  source                 = "../../modules/iam"
-  project_name           = "${local.name_prefix}-runtime"
-  orders_table_arn       = module.dynamodb.table_arn
+module "iam_step_functions_role" {
+  source                 = "../../modules/iam-step-functions-role"
+  role_name              = "${local.name_prefix}-step-functions-role"
   event_bus_arn          = module.eventbridge.bus_arn
   shipping_queue_arn     = module.sqs.shipping_queue_arn
   notification_queue_arn = module.sqs.notification_queue_arn
@@ -188,7 +262,7 @@ module "iam_runtime" {
 module "order_processing_state_machine" {
   source   = "../../modules/stepfunctions"
   name     = "${local.name_prefix}-order-processing"
-  role_arn = module.iam_runtime.step_functions_role_arn
+  role_arn = module.iam_step_functions_role.role_arn
   tags     = local.tags
   definition = templatefile("${path.module}/order-processing.asl.json.tpl", {
     inventory_lambda_arn = module.lambdas["inventory"].function_arn
@@ -337,10 +411,24 @@ module "dashboard" {
   state_machine_name    = module.order_processing_state_machine.arn
 }
 
+resource "aws_sns_topic" "alerts" {
+  name = "${local.name_prefix}-alerts"
+  tags = local.tags
+}
+
+# Optional: only created when alarm_notification_email is set, so this stack
+# still applies cleanly out of the box without requiring a real inbox.
+resource "aws_sns_topic_subscription" "alerts_email" {
+  count     = var.alarm_notification_email != "" ? 1 : 0
+  topic_arn = aws_sns_topic.alerts.arn
+  protocol  = "email"
+  endpoint  = var.alarm_notification_email
+}
+
 module "alarms" {
   source                = "../../modules/alarms"
   lambda_function_names = [for lambda in module.lambdas : lambda.function_name]
   queue_names           = [module.sqs.shipping_queue_name, module.sqs.notification_queue_name, module.sqs.dead_letter_queue_name]
   state_machine_name    = module.order_processing_state_machine.arn
-  alarm_actions         = []
+  alarm_actions         = [aws_sns_topic.alerts.arn]
 }

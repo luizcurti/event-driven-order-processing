@@ -10,6 +10,7 @@ Usage:
   ./local.sh ready    # Start LocalStack/bootstrap and run local HTTP API (Postman ready)
   ./local.sh tf       # Validate Terraform (fmt + init -backend=false + validate)
   ./local.sh test     # Run typecheck, lint, unit/coverage tests and e2e
+  ./local.sh api      # Start LocalStack/bootstrap, run local HTTP API and the Postman collection via newman
   ./local.sh down     # Stop LocalStack and remove volumes (leaves the observability stack running, if up)
   ./local.sh obs      # Start LocalStack (if needed) plus Prometheus, Pushgateway, Loki, Promtail and Grafana
   ./local.sh obs:down # Stop only the observability stack and remove its volumes (leaves LocalStack running)
@@ -69,6 +70,42 @@ tests() {
   run_npm lint
   run_npm test
   run_npm test:e2e
+}
+
+api_test() {
+  require_cmd npm
+  require_cmd curl
+  up
+
+  local port="${PORT:-3000}"
+  local base_url="http://127.0.0.1:${port}"
+  local log_file="$ROOT_DIR/logs/api-test-server.log"
+  mkdir -p "$ROOT_DIR/logs"
+
+  echo "==> starting local HTTP API for collection tests (port ${port})"
+  # `exec` replaces the subshell with the tsx process itself, so $! is the
+  # actual server PID -- without it, `kill "$server_pid"` only terminates an
+  # empty subshell wrapper and leaves the real server running as an orphan.
+  # Calling the locally installed binary directly (not `npx tsx`) avoids an
+  # extra process layer that would reintroduce the same problem.
+  (cd "$ROOT_DIR" && exec "$ROOT_DIR/node_modules/.bin/tsx" scripts/localstack/server.ts >"$log_file" 2>&1) &
+  local server_pid=$!
+  trap 'kill "$server_pid" 2>/dev/null || true; wait "$server_pid" 2>/dev/null || true' EXIT
+
+  echo "==> waiting for local HTTP API on ${base_url}"
+  if ! curl -fsS "${base_url}/metrics" --retry 60 --retry-delay 1 --retry-connrefused >/dev/null; then
+    echo "Error: local HTTP API did not become ready in time. See $log_file"
+    exit 1
+  fi
+
+  echo "==> npx newman run postman/event-driven-order-processing.local.postman_collection.json"
+  local exit_code=0
+  npx --yes newman@6.2.2 run \
+    "$ROOT_DIR/postman/event-driven-order-processing.local.postman_collection.json" \
+    --env-var "baseUrl=${base_url}" \
+    || exit_code=$?
+
+  exit "$exit_code"
 }
 
 down() {
@@ -135,6 +172,9 @@ main() {
       ;;
     test)
       tests
+      ;;
+    api)
+      api_test
       ;;
     down)
       down

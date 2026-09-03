@@ -1,0 +1,67 @@
+sequenceDiagram
+    autonumber
+    participant C as Client
+    participant API as create-order Lambda
+    participant DB as DynamoDB (Orders)
+    participant EB as EventBridge
+    participant SFN as Step Functions
+    participant INV as inventory Lambda
+    participant PAY as payment Lambda
+    participant FRAUD as fraud Lambda
+    participant SQS as SQS queues
+    participant SHIP as shipping Lambda
+    participant NOTIFY as notification Lambda
+
+    C->>API: POST /orders (idempotency-key, correlation-id)
+    API->>DB: create order (status=RECEIVED)
+    API->>EB: publish OrderCreated
+    API-->>C: 202 { orderId, status: RECEIVED }
+
+    Note over EB,SFN: rule "order-created" starts the workflow
+    EB->>SFN: start execution
+
+    SFN->>INV: CheckInventory task
+    INV->>DB: update status (PROCESSING | OUT_OF_STOCK)
+    INV->>EB: publish InventoryValidated | InventoryFailed
+
+    alt inventory available
+        SFN->>PAY: ProcessPayment task
+        PAY->>DB: update status (PROCESSING | PAYMENT_FAILED)
+        PAY->>EB: publish PaymentApproved | PaymentFailed
+
+        alt payment approved
+            SFN->>FRAUD: CheckFraud task
+            FRAUD->>DB: update status (APPROVED | FRAUD_DETECTED)
+            FRAUD->>EB: publish FraudApproved | FraudRejected
+
+            alt fraud approved
+                SFN->>EB: PublishOrderApproved task
+                Note over EB,SQS: rule "order-approved" -> shipping-queue
+                EB->>SQS: route to shipping-queue
+                SQS->>SHIP: deliver message
+                SHIP->>DB: update status (SHIPPING then DELIVERED)
+                SHIP->>EB: publish ShippingStarted, ShippingCompleted
+            else fraud rejected
+                Note over EB,SQS: rule "fraud-rejected" -> notification-queue
+                EB->>SQS: route to notification-queue
+                SQS->>NOTIFY: deliver message
+                NOTIFY-->>NOTIFY: log notification (email/sms/push)
+            end
+        else payment failed
+            Note over EB,SQS: rule "payment-failed" -> notification-queue
+            EB->>SQS: route to notification-queue
+            SQS->>NOTIFY: deliver message
+            NOTIFY-->>NOTIFY: log notification
+        end
+    else out of stock
+        Note over EB,SQS: rule "inventory-failed" -> notification-queue
+        EB->>SQS: route to notification-queue
+        SQS->>NOTIFY: deliver message
+        NOTIFY-->>NOTIFY: log notification
+    end
+
+    Note over SQS: unprocessable messages land on the dead-letter queue after max receives
+
+    C->>API: GET /orders/{id} (poll)
+    API->>DB: read order
+    API-->>C: 200 { status }

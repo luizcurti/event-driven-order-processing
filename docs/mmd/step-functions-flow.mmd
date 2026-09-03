@@ -1,0 +1,40 @@
+stateDiagram-v2
+    [*] --> CheckInventory: OrderCreated
+
+    CheckInventory: CheckInventory (Task, retry x3 backoff x2)
+    InventoryDecision: InventoryDecision (Choice)
+    ProcessPayment: ProcessPayment (Task, retry x3 backoff x2)
+    PaymentDecision: PaymentDecision (Choice)
+    CheckFraud: CheckFraud (Task, retry x3 backoff x2)
+    FraudDecision: FraudDecision (Choice)
+    PublishOrderApproved: PublishOrderApproved (events:putEvents)
+    EndOutOfStock: EndOutOfStock (Succeed)
+    EndPaymentFailed: EndPaymentFailed (Succeed)
+    EndFraudRejected: EndFraudRejected (Succeed)
+
+    CheckInventory --> InventoryDecision
+
+    InventoryDecision --> ProcessPayment: inventoryStatus == AVAILABLE
+    InventoryDecision --> EndOutOfStock: default (OUT_OF_STOCK)
+
+    ProcessPayment --> PaymentDecision
+
+    PaymentDecision --> CheckFraud: paymentStatus == APPROVED
+    PaymentDecision --> EndPaymentFailed: default (FAILED)
+
+    CheckFraud --> FraudDecision
+
+    FraudDecision --> PublishOrderApproved: fraudStatus == APPROVED
+    FraudDecision --> EndFraudRejected: default (REJECTED)
+
+    PublishOrderApproved --> [*]
+    EndOutOfStock --> [*]
+    EndPaymentFailed --> [*]
+    EndFraudRejected --> [*]
+
+    note right of EndOutOfStock
+        InventoryFailed, PaymentFailed and FraudRejected are
+        published by the respective Lambda itself before the
+        state machine reaches its Succeed state; EventBridge
+        rules route each to the notification queue.
+    end note

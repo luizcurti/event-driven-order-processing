@@ -36,4 +36,8 @@ resource "aws_dynamodb_table" "orders" {
   }
 
   tags = var.tags
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }

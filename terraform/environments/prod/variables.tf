@@ -21,3 +21,9 @@ variable "waf_rate_limit" {
   default     = 5000
   description = "WAF requests per 5-minute period."
 }
+
+variable "alarm_notification_email" {
+  type        = string
+  default     = ""
+  description = "Email address subscribed to the CloudWatch alarms SNS topic. Leave empty to create the topic without a subscription."
+}

@@ -74,7 +74,6 @@ export type OrderEventType =
   | 'FraudApproved'
   | 'FraudRejected'
   | 'OrderApproved'
-  | 'OrderRejected'
   | 'ShippingStarted'
   | 'ShippingCompleted';
 

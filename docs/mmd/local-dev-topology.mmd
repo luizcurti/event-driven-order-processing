@@ -1,0 +1,32 @@
+flowchart LR
+    dev["Developer / Postman"]
+
+    subgraph host["Host machine"]
+        server["local HTTP server\n(scripts/localstack/server.ts)\n:3000"]
+        logfile["logs/local-server.log"]
+    end
+
+    subgraph compose["docker-compose.localstack.yml"]
+        localstack["LocalStack\nDynamoDB, EventBridge, SQS,\nStep Functions, IAM, CloudWatch\n:4567 -> 4566"]
+
+        subgraph obs["--profile observability"]
+            prometheus["Prometheus\n:9090"]
+            pushgateway["Pushgateway\n:9091"]
+            loki["Loki\n:3100"]
+            promtail["Promtail"]
+            grafana["Grafana\n:3001"]
+        end
+    end
+
+    dev -->|HTTP requests| server
+    server -->|USE_REAL_LAMBDAS=true only| localstack
+    server -->|writes JSON logs| logfile
+    server -->|GET /metrics scraped by| prometheus
+    localstack -->|per-invocation Lambda containers push metrics| pushgateway
+    prometheus --> pushgateway
+    promtail -->|tails| logfile
+    promtail -->|reads container logs via| localstack
+    promtail --> loki
+    grafana --> prometheus
+    grafana --> loki
+    dev -->|dashboards| grafana

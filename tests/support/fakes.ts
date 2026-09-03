@@ -1,7 +1,6 @@
 import type {
   EventPublisher,
   FeatureFlags,
-  QueuePublisher,
   StructuredLogger
 } from '../../src/shared/application/ports';
 import type { EventEnvelope } from '../../src/shared/domain/order';
@@ -11,15 +10,6 @@ export class FakeEventPublisher implements EventPublisher {
 
   publish<TDetail>(event: EventEnvelope<TDetail>): Promise<void> {
     this.events.push(event);
-    return Promise.resolve();
-  }
-}
-
-export class FakeQueuePublisher implements QueuePublisher {
-  public readonly messages: Array<{ queueUrl: string; payload: unknown }> = [];
-
-  send<TPayload>(queueUrl: string, payload: TPayload): Promise<void> {
-    this.messages.push({ queueUrl, payload });
     return Promise.resolve();
   }
 }

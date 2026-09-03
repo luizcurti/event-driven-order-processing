@@ -205,7 +205,9 @@ const deployFunction = async (
     await waitForFunctionActive(lambdaClient, name);
 
     if (!created.FunctionArn) {
-      throw new Error(`LocalStack did not return an ARN for ${name}.`);
+      throw new Error(`LocalStack did not return an ARN for ${name}.`, {
+        cause: error
+      });
     }
 
     return created.FunctionArn;
@@ -435,7 +437,9 @@ const ensureStateMachine = async (
     );
 
     if (!created.stateMachineArn) {
-      throw new Error('LocalStack did not return a state machine ARN.');
+      throw new Error('LocalStack did not return a state machine ARN.', {
+        cause: error
+      });
     }
 
     return created.stateMachineArn;

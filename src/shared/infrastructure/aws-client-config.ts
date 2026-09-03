@@ -14,7 +14,7 @@ const buildLocalAwsClientConfig = () => {
     return {};
   }
 
-  const endpoint = process.env.LOCAL_AWS_ENDPOINT ?? 'http://localhost:4566';
+  const endpoint = process.env.LOCAL_AWS_ENDPOINT ?? 'http://localhost:4567';
 
   return {
     endpoint,

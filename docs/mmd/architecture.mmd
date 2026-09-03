@@ -1,0 +1,59 @@
+flowchart TB
+    client["Client"]
+
+    subgraph aws["AWS"]
+        waf["WAF\nrate limiting"]
+        apigw["API Gateway\nPOST/GET/DELETE /orders"]
+
+        subgraph sync["Synchronous API Lambdas"]
+            createOrder["create-order"]
+            getOrder["get-order"]
+            listOrders["list-orders"]
+            cancelOrder["cancel-order"]
+        end
+
+        orders[("DynamoDB\nOrders table")]
+        bus{{"EventBridge\nOrderCreated"}}
+        sfn["Step Functions\norder-processing workflow"]
+
+        subgraph workflow["Workflow Lambdas"]
+            inventory["inventory"]
+            payment["payment"]
+            fraud["fraud"]
+        end
+
+        shippingQueue[["SQS\nshipping-queue"]]
+        notificationQueue[["SQS\nnotification-queue"]]
+        dlq[["SQS\ndead-letter-queue"]]
+
+        shipping["shipping"]
+        notification["notification"]
+        updateOrder["update-order"]
+
+        cw["CloudWatch\ndashboards + alarms"]
+    end
+
+    client --> waf --> apigw
+    apigw --> createOrder & getOrder & listOrders & cancelOrder
+    createOrder --> orders
+    createOrder --> bus
+    getOrder --> orders
+    listOrders --> orders
+    cancelOrder --> orders
+
+    bus --> sfn
+    sfn --> inventory --> payment --> fraud
+    inventory -. updates .-> updateOrder
+    payment -. updates .-> updateOrder
+    fraud -. updates .-> updateOrder
+    updateOrder --> orders
+
+    sfn --> shippingQueue
+    sfn --> notificationQueue
+    shippingQueue -. retries exhausted .-> dlq
+    notificationQueue -. retries exhausted .-> dlq
+
+    shippingQueue --> shipping --> orders
+    notificationQueue --> notification
+
+    createOrder & getOrder & listOrders & cancelOrder & inventory & payment & fraud & shipping & notification --> cw

@@ -11,5 +11,5 @@ output "invoke_url" {
 }
 
 output "stage_arn" {
-  value = "arn:aws:apigateway:${data.aws_region.current.name}::/restapis/${aws_api_gateway_rest_api.this.id}/stages/${aws_api_gateway_stage.this.stage_name}"
+  value = aws_api_gateway_stage.this.arn
 }

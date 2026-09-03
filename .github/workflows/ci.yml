@@ -22,8 +22,17 @@ jobs:
       - name: Install
         run: npm ci
 
+      - name: Dependency Security Audit
+        run: npm audit --audit-level=high
+
+      - name: Format Check
+        run: npm run format
+
       - name: Lint
         run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
 
       - name: Unit Tests
         run: npm run test:unit
@@ -34,11 +43,8 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v4
 
-      - name: Terraform Validate
-        run: |
-          cd terraform
-          terraform init -backend=false
-          terraform validate
+      - name: Terraform fmt/init/validate (dev and prod)
+        run: ./scripts/terraform-check.sh
 
   e2e-localstack:
     runs-on: ubuntu-latest
@@ -75,10 +81,86 @@ jobs:
         if: always()
         run: docker compose -f docker-compose.localstack.yml --profile e2e-localstack down --remove-orphans
 
+  api-collection:
+    runs-on: ubuntu-latest
+    needs: validate
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Run Postman Collection Against Local API
+        run: npm run test:api
+
+      - name: Stop LocalStack
+        if: always()
+        run: docker compose -f docker-compose.localstack.yml down -v --remove-orphans
+
+  terraform-plan:
+    # Runs a real `terraform plan` for `dev` against AWS, so it needs an IAM
+    # role to assume via GitHub's OIDC provider. Configure it once by setting
+    # the AWS_ROLE_ARN repository variable to that role's ARN (see README ->
+    # CI/CD) -- a role ARN isn't sensitive by itself (the role's trust policy
+    # is what actually gates access), so it's a variable, not a secret, and
+    # can safely be read in this `if:` condition. Until it's set, this job
+    # skips cleanly instead of failing.
+    #
+    # head.repo.full_name == repository excludes fork-originated PRs: `plan`
+    # evaluates provider/data-source code (e.g. a "data external" block runs
+    # arbitrary local commands during plan, not just apply), and the AWS
+    # credentials assumed below are already in this job's environment by the
+    # time that runs -- without this check, a PR from a fork could add such
+    # a block to terraform/environments/dev/*.tf to exfiltrate them. Even a
+    # read-only-by-convention role would still mean live credential theft.
+    if: github.event_name == 'pull_request' && vars.AWS_ROLE_ARN != '' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    needs: validate
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Package Lambda artifacts
+        run: npm run package:artifacts
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+
+      - name: Terraform Init (dev)
+        run: terraform -chdir=terraform/environments/dev init -input=false
+
+      - name: Terraform Plan (dev)
+        run: terraform -chdir=terraform/environments/dev plan -input=false -no-color
+
   deploy:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    needs: [validate, e2e-localstack]
+    needs: [validate, e2e-localstack, api-collection]
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -86,8 +168,5 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v4
 
-      - name: Terraform Validate
-        run: |
-          cd terraform
-          terraform init -backend=false
-          terraform validate
+      - name: Terraform fmt/init/validate (dev and prod)
+        run: ./scripts/terraform-check.sh
