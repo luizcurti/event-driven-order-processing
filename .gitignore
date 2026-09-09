@@ -1,0 +1,11 @@
+node_modules/
+dist/
+coverage/
+artifacts/
+.terraform/
+*.tfstate
+*.tfstate.*
+backend.hcl
+.DS_Store
+logs/*.log
+.claude/

@@ -1,0 +1,7 @@
+# Copy to backend.hcl (gitignored) and fill in the bucket/table created by
+# `terraform/bootstrap`, then run: terraform init -backend-config=backend.hcl
+bucket         = "your-tfstate-bucket-name"
+key            = "prod/terraform.tfstate"
+region         = "us-east-1"
+dynamodb_table = "event-driven-order-processing-tf-locks"
+encrypt        = true
