@@ -1,6 +1,6 @@
 variable "aws_region" {
   type        = string
-  default     = "us-east-1"
+  default     = "eu-west-2"
   description = "AWS region for the environment."
 }
 
@@ -44,4 +44,10 @@ variable "alarm_notification_email" {
   type        = string
   default     = ""
   description = "Email address subscribed to the CloudWatch alarms SNS topic. Leave empty to create the topic without a subscription."
+}
+
+variable "dynamodb_deletion_protection" {
+  type        = bool
+  default     = true
+  description = "Protects the orders table from deletion (DynamoDB deletion protection). Turn off with an apply before destroying prod."
 }
