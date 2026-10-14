@@ -198,6 +198,14 @@ data "aws_iam_policy_document" "github_deploy" {
     resources = ["arn:aws:states:${local.rgn}:${local.acct}:stateMachine:${local.p}-*"]
   }
 
+  # The provider validates the ASL before Create/UpdateStateMachine; AWS authorizes this
+  # call against stateMachine:* rather than the machine's own name.
+  statement {
+    sid       = "StepFunctionsValidateDefinition"
+    actions   = ["states:ValidateStateMachineDefinition"]
+    resources = ["arn:aws:states:${local.rgn}:${local.acct}:stateMachine:*"]
+  }
+
   statement {
     sid = "ApiGateway"
     actions = [
