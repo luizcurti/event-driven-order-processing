@@ -154,9 +154,10 @@ module "eventbridge" {
 }
 
 module "dynamodb" {
-  source     = "../../modules/dynamodb"
-  table_name = "${local.name_prefix}-orders"
-  tags       = local.tags
+  source                      = "../../modules/dynamodb"
+  table_name                  = "${local.name_prefix}-orders"
+  deletion_protection_enabled = var.dynamodb_deletion_protection
+  tags                        = local.tags
 }
 
 # Least-privilege Lambda execution roles, one per access pattern (see the

@@ -17,15 +17,21 @@ data "aws_iam_policy_document" "apigateway_cloudwatch_assume_role" {
 }
 
 resource "aws_iam_role" "apigateway_cloudwatch" {
+  count = var.manage_apigateway_account ? 1 : 0
+
   name               = "apigateway-cloudwatch-logs-role"
   assume_role_policy = data.aws_iam_policy_document.apigateway_cloudwatch_assume_role.json
 }
 
 resource "aws_iam_role_policy_attachment" "apigateway_cloudwatch" {
-  role       = aws_iam_role.apigateway_cloudwatch.name
+  count = var.manage_apigateway_account ? 1 : 0
+
+  role       = aws_iam_role.apigateway_cloudwatch[0].name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs"
 }
 
 resource "aws_api_gateway_account" "this" {
-  cloudwatch_role_arn = aws_iam_role.apigateway_cloudwatch.arn
+  count = var.manage_apigateway_account ? 1 : 0
+
+  cloudwatch_role_arn = aws_iam_role.apigateway_cloudwatch[0].arn
 }

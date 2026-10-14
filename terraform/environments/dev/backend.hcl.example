@@ -2,6 +2,6 @@
 # `terraform/bootstrap`, then run: terraform init -backend-config=backend.hcl
 bucket         = "your-tfstate-bucket-name"
 key            = "dev/terraform.tfstate"
-region         = "us-east-1"
+region         = "eu-west-2"
 dynamodb_table = "event-driven-order-processing-tf-locks"
 encrypt        = true

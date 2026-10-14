@@ -1,6 +1,6 @@
 variable "aws_region" {
   type        = string
-  default     = "us-east-1"
+  default     = "eu-west-2"
   description = "AWS region for the state bucket and lock table."
 }
 
@@ -30,4 +30,46 @@ variable "budget_notification_email" {
     condition     = var.budget_limit_usd == 0 || var.budget_notification_email != ""
     error_message = "budget_notification_email must be set when budget_limit_usd > 0."
   }
+}
+
+variable "manage_apigateway_account" {
+  type        = bool
+  default     = true
+  description = "Set the region's API Gateway CloudWatch logging role (an account/region-wide singleton) from this stack. Set to false when another stack in the same account and region already manages aws_api_gateway_account, so the two don't keep overwriting each other."
+}
+
+variable "github_repository" {
+  type        = string
+  default     = "luizcurti/event-driven-order-processing"
+  description = "owner/repo allowed to assume the deploy role via GitHub OIDC."
+}
+
+variable "github_owner_id" {
+  type        = number
+  default     = 9360461
+  description = "Numeric GitHub ID of the repository owner, used in GitHub's immutable OIDC subject format (gh api repos/OWNER/REPO --jq .owner.id)."
+}
+
+variable "github_repository_id" {
+  type        = number
+  default     = 1305192869
+  description = "Numeric GitHub ID of the repository, used in GitHub's immutable OIDC subject format (gh api repos/OWNER/REPO --jq .id)."
+}
+
+variable "github_environments" {
+  type        = list(string)
+  default     = ["dev"]
+  description = "GitHub environments whose jobs may assume the deploy role. Each one maps to terraform/environments/<name>."
+}
+
+variable "create_oidc_provider" {
+  type        = bool
+  default     = true
+  description = "Create the token.actions.githubusercontent.com OIDC provider. Set to false if the account already has it (an account can only have one)."
+}
+
+variable "project_name" {
+  type        = string
+  default     = "event-driven-order-processing"
+  description = "Must match project_name in terraform/environments/*/variables.tf: the deploy role's permissions are scoped by this prefix."
 }

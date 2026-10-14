@@ -35,9 +35,10 @@ resource "aws_dynamodb_table" "orders" {
     enabled = true
   }
 
-  tags = var.tags
+  # DynamoDB-native deletion protection instead of `lifecycle { prevent_destroy }`:
+  # prevent_destroy can't be driven by a variable, so it would block the dev
+  # environment's Destroy workflow too. prod keeps it on (see its variables.tf).
+  deletion_protection_enabled = var.deletion_protection_enabled
 
-  lifecycle {
-    prevent_destroy = true
-  }
+  tags = var.tags
 }

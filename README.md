@@ -319,11 +319,41 @@ GitHub Actions (`.github/workflows/ci.yml`) runs on every push/PR to `main`:
    for catching real AWS-side errors (auth, invalid references) that `validate` can't. (`-backend=false` alone isn't
    enough here: once `versions.tf` declares a real `backend "s3" {}` block, only `init` accepts that flag —
    `plan` still requires a real or overridden backend.)
-6. **deploy** (only on `main`, needs `validate`, `e2e-localstack`, `e2e-real-lambdas`, `api-collection`): re-validates
-   Terraform. There is no `terraform apply` step; applying infrastructure changes is a manual action (see [Terraform
-   deployment](#terraform-deployment)).
+6. **deploy** (push to `main` or a manual **Run workflow** on `main`, needs `validate`, `e2e-localstack`,
+   `e2e-real-lambdas`, `api-collection`): deploys `terraform/environments/dev` to real AWS — packages the Lambda
+   artifacts, assumes the deploy role via GitHub OIDC, runs `terraform plan` + `apply` against the S3 backend and
+   smoke-tests `GET /orders` on the live API. Skips the AWS steps until configured; see
+   [Deploy via GitHub Actions](#deploy-via-github-actions). `prod` is never deployed by CI.
+
+A separate, manual **Destroy** workflow (`.github/workflows/destroy.yml`) tears `dev` down again.
 
 Any failing step fails the pipeline.
+
+### Deploy via GitHub Actions
+
+The `deploy` job and the Destroy workflow authenticate with GitHub OIDC (no AWS keys stored in GitHub) as the
+`event-driven-order-processing-github-deploy` role, created by `terraform/bootstrap` (`github-deploy.tf`). Its trust
+policy only accepts jobs running in the `dev` GitHub environment of this repository, and its permissions are scoped
+to resources named with the `event-driven-order-processing-` prefix wherever AWS supports it; it can only attach
+the stack's own IAM policies and can't modify itself.
+
+One-time setup:
+
+1. Apply `terraform/bootstrap` (see [One-time account setup](#one-time-account-setup-terraformbootstrap)). Add
+   `-var="create_oidc_provider=false"` if the AWS account already has the `token.actions.githubusercontent.com` OIDC
+   provider, and `-var="manage_apigateway_account=false"` if another stack in the same account/region already
+   manages the API Gateway CloudWatch role.
+2. In GitHub → Settings → Environments, create `dev` and add the variables `AWS_DEPLOY_ROLE_ARN`,
+   `TF_STATE_BUCKET`, `TF_STATE_LOCK_TABLE` and `AWS_REGION` from the bootstrap outputs. Optional: `ALARM_EMAIL`
+   (subscribed to the alarms topic) and `LAMBDA_RESERVED_CONCURRENCY` (default `-1`, no reservation: new AWS
+   accounts have a 10-execution concurrency limit, which leaves nothing to reserve; raise the _Lambda → Concurrent
+   executions_ quota first).
+3. Push to `main`, or run **Actions → CI-CD → Run workflow** on `main`. The API URL is printed in the job summary.
+
+To stop paying for `dev` while it's unused (mainly the WAF web ACL, a fixed monthly cost), run **Actions → Destroy →
+Run workflow** on `main` and type `destroy`. It deletes every resource of `terraform/environments/dev`, DynamoDB data
+included (dev's orders table has deletion protection off; prod keeps it on). Recreate it with **Run workflow** on
+CI-CD; the bootstrap resources are kept, so no setup is needed again.
 
 ### Terraform static analysis (tflint, Checkov)
 
@@ -395,6 +425,7 @@ once, by hand, before (or instead of) touching `dev`/`prod`:
 - The `aws_api_gateway_account` CloudWatch role. API Gateway execution/access logs need this set once per
   account/region — putting it inside `terraform/modules/apigateway` instead would mean `dev` and `prod` (separate
   states, same account) fighting over the same setting on every apply, so it lives here instead.
+- The GitHub OIDC provider and the deploy role used by CI (see [Deploy via GitHub Actions](#deploy-via-github-actions)).
 - An optional account-wide `aws_budgets_budget` covering dev and prod combined (Step Functions bills per state
   transition and Lambda per invocation, so a cheap guardrail against a runaway loop/bug is worth having). Skipped
   entirely unless you pass `budget_limit_usd` (and, since it's required alongside it, `budget_notification_email`).
